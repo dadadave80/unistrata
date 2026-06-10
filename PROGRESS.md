@@ -195,7 +195,18 @@ Confirm desired event taxonomy at Phase 3 review.
 - [ ] **End-to-end testnet run** (user-executed): recorded 3-hop tx trail for heartbeat AND spike.
       Needs funded keys on Unichain Sepolia + Lasna. This artifact goes in the README/video.
 
-## Phases 5–7 — out of current session scope (sim harness → money chart, frontend, polish/video).
+## Phase 5 — Simulation harness · ✅ complete
+- [x] **`SimSwapper`** — moves the pool to a target sqrt price with a real, price-limited
+      `PoolManager.swap` (the v4 router doesn't expose price limits), triggering `afterSwap` variance.
+- [x] **`SimReplay.t.sol`** — replays `sim/paths/<scenario>.json` (calm / trend / crash, deterministic
+      GBM) as swaps, settles epochs on schedule, exports `sim/out/<scenario>.json` per-epoch metrics,
+      and asserts conservation + senior-protection under the path. 3 scenarios, 119 tests total.
+- [x] **The money chart** (crash): senior NAV flat at 600 through a ~44% swing; junior absorbs the
+      gap (970 → 595 → 715); vanillaLP < HODL (IL visible). ✅ brief §5 acceptance met.
+- [x] Output schema defined (the Phase-6 contract) — documented atop `SimReplay.t.sol`; WAD-integer
+      strings. Outputs committed (un-ignored) so the frontend's replay mode needs zero tooling.
+
+## Phases 6–7 — remaining (frontend wiring to the sim JSON + live reads; README/architecture/video).
 
 ---
 

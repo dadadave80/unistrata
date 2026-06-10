@@ -2,6 +2,10 @@
 cache/
 out/
 
+# ...but keep the simulation's money-chart outputs (the Phase-6 frontend's replay data)
+!sim/out/
+!sim/out/*.json
+
 # Ignores development (and goerli) broadcast logs
 !/broadcast
 /broadcast/*/31337/
