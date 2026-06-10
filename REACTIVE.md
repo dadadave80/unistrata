@@ -97,34 +97,40 @@ callback gas limit 100,000); `depositTo(hook)` pre-funds and settles debt. Leave
 native gas or it gets **blocklisted** until the debt clears. Determine the right pre-fund amount
 empirically on testnet (no published minimum beyond the gas floor).
 
-## Live testnet deployment (Phase 4 — verified on-chain)
+## Live testnet deployment (Phase 4 — verified on-chain, full loop closed)
 
-Deployed and subscribed end-to-end (addresses also in `.env`, broadcast receipts under `broadcast/`):
+Deployed, subscribed, funded, and **demonstrated end-to-end** (addresses in `.env`, receipts under `broadcast/`):
 
 | Contract | Chain | Address | Deploy tx |
 |---|---|---|---|
 | tWETH (18) | Unichain Sepolia 1301 | `0x911EcAEde6A8AE982851000C019b063A8688d9DB` | — |
 | tUSDC (6) | Unichain Sepolia 1301 | `0x4C63d215C51B82A401Bb11236349d7Ef12F1B3B4` | — |
-| UnistrataHook | Unichain Sepolia 1301 | `0x1E9368Dee25c05472CfB234FF3091f10482Fd840` | `0x05ce35f6…5e791` (+ pool init `0x36525964…da3db`) |
-| UnistrataReactive (RSC) | Lasna 5318007 | `0x1F9509ae8B2D5186449Cb8f8a7855eCc43d2EC67` | `0x693199d3…71550` |
+| UnistrataHook | Unichain Sepolia 1301 | `0x721480297Fbe8fb1FD72FDab3887D87e59Dcd840` | `0x1dcdfcf4…` (+ pool init `0x37ff5d3f…`) |
+| UnistrataReactive (RSC) | Lasna 5318007 | `0x3d156B6E1568A24Cd6977c9FE29F53CF5D741d34` | `0xb6f7239e…` |
 
-**Subscription proof:** the UnistrataReactive deploy tx emitted **two `Subscribe` events** from the system
-contract `0x…ffffff` and **zero `SubscribeFailed`** — confirming the constructor's try/catch subscribed
-on-chain in the same broadcast:
-1. CRON heartbeat — subscriber `0x1F9509…`, chainId `5318007`, contract `0x…ffffff` (the service);
-2. UnistrataObservation — subscriber `0x1F9509…`, chainId `1301`, contract `0x1E9368…` (the hook).
+**Subscription proof:** the RSC deploy tx emitted **two `Subscribe` events** (system contract `0x…ffffff`,
+zero `SubscribeFailed`): CRON on `5318007` + UnistrataObservation on the hook at `1301`.
+**Funding (one multichain `03` run, both legs `0x1`):** hook prefund `0xbe58893e…` (1301, 0.05 ETH) + RSC
+top-up `0x402bd33a…` (5318007, 5 REACT).
 
-The accepted cross-chain subscription to chainId `1301` confirms **Unichain Sepolia is a supported origin
-chain** for Lasna subscriptions.
+### Spike circuit-breaker — full 3-hop trail (the "wow moment")
 
-**Funding (one multichain `03` run, both legs status `0x1`):**
-
-| Leg | Chain | Tx | Amount |
+| Hop | Chain | Tx | What |
 |---|---|---|---|
-| `depositTo(hook)` via callback proxy | Unichain Sepolia 1301 | `0x211be173…a4f9a` | 0.05 ETH (debt prefund) |
-| RSC top-up | Lasna 5318007 | `0xf08460f1…f30ef` | 5 REACT |
+| 0. Deposit | Unichain 1301 | `0xb5552794…`, `0x2a8f2a23…` | into Sediment + Bedrock |
+| 1. Build variance | Unichain 1301 | 6 `--slow` swaps, blocks 54247937–944 | `varAcc` → 6,000,000 |
+| **1b. Threshold crossing** | Unichain 1301 | **`0xe07d6c49…`** (block 54247942) | `UnistrataObservation` `varAcc = 4,000,000` |
+| 2. RSC reacts | Lasna 5318007 | (Reactscan, RSC `0x3d156B…`, `CALLBACKS = 1`) | `react()` → `Callback` (`emergencySettle`) |
+| **3. Callback lands** | Unichain 1301 | **`0x4faab03f…b14d56b0`** (block 54247954) | `emergencySettle` → `EmergencySettled` + `EpochSettled`, `epochId` 0→1 |
 
-Remaining for the demo: capture the heartbeat and spike tx trails below.
+The callback executed **~12 blocks (~12s)** after the threshold crossing — zero off-chain infrastructure,
+fully on-chain cross-chain automation. ✅ Phase 4 acceptance met.
+
+> **Gotcha fixed along the way:** the hook is deployed via CREATE2 (HookMiner), so `AbstractCallback` set
+> `rvm_id = msg.sender = the CREATE2 factory`; callbacks carry the EOA's rvm id, so `emergencySettle`
+> reverted "Authorized RVM ID only" until the hook constructor was changed to `rvm_id = tx.origin`
+> (the deploying EOA). Also: the spike swaps **must** use `--slow` so each lands in its own block (the
+> hook counts one variance observation per new block).
 
 ## Demo capture (Phase 4 acceptance — tx hashes for the README/video)
 

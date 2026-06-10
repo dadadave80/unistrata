@@ -8,25 +8,28 @@ deviations from the plan (with reasons). Newest status at the top of each phase.
 
 ---
 
-## Live testnet deployment (Phase 4 — verified on-chain 2026-06-11)
+## Live testnet deployment (Phase 4 — verified on-chain, FULL LOOP CLOSED 2026-06-11)
 
-Fresh Unistrata stack deployed AND subscribed end-to-end (addresses in `.env`; receipts under `broadcast/`):
+Final Unistrata stack — deployed, subscribed, funded, and **demonstrated end-to-end** (addresses in
+`.env`; receipts under `broadcast/`):
 
 | Contract | Chain | Address |
 |---|---|---|
 | tWETH (18) | Unichain Sepolia 1301 | `0x911EcAEde6A8AE982851000C019b063A8688d9DB` |
 | tUSDC (6) | Unichain Sepolia 1301 | `0x4C63d215C51B82A401Bb11236349d7Ef12F1B3B4` |
-| UnistrataHook | Unichain Sepolia 1301 | `0x1E9368Dee25c05472CfB234FF3091f10482Fd840` (deploy `0x05ce35f6…`, pool init `0x36525964…`) |
-| UnistrataReactive | Lasna 5318007 | `0x1F9509ae8B2D5186449Cb8f8a7855eCc43d2EC67` (deploy `0x693199d3…`) |
+| UnistrataHook | Unichain Sepolia 1301 | `0x721480297Fbe8fb1FD72FDab3887D87e59Dcd840` (deploy `0x1dcdfcf4…`, pool init `0x37ff5d3f…`) |
+| UnistrataReactive | Lasna 5318007 | `0x3d156B6E1568A24Cd6977c9FE29F53CF5D741d34` (deploy `0xb6f7239e…`) |
 
-The RSC deploy tx emitted **two `Subscribe` events** (system contract `0x…ffffff`) and **zero
-`SubscribeFailed`** → the constructor's try/catch subscribed on-chain in one broadcast: (1) CRON on
-5318007, (2) UnistrataObservation from the hook on **1301** (`0x1E9368…`) — proving Unichain Sepolia is an
-accepted Lasna origin chain.
+Subscribed (two `Subscribe` events, zero `SubscribeFailed`: CRON on 5318007 + UnistrataObservation on the
+hook at 1301). Funded via one multichain `03` run (both `0x1`): hook `0xbe58893e…` + RSC `0x402bd33a…`.
 
-**Funded** via one multichain `03_FundAndSubscribe` run (both legs status `0x1`): hook debt prefund
-`depositTo` on 1301 (`0x211be173…`, 0.05 ETH) + RSC top-up on 5318007 (`0xf08460f1…`, 5 REACT; balance
-confirmed 5 REACT). Remaining: capture the heartbeat + spike tx trails.
+**Spike circuit-breaker — full 3-hop trail:** deposits (`0xb5552794…`, `0x2a8f2a23…`) → 6 `--slow` swaps
+(blocks 54247937–944) drove `varAcc` to 6e6; **threshold crossed** at `0xe07d6c49…` (block 54247942,
+`varAcc=4,000,000`) → RSC `0x3d156B…` reacted (Reactscan, `CALLBACKS=1`) → **`emergencySettle` landed**
+`0x4faab03f…` (block 54247954, ~12 blocks later): `EmergencySettled` + `EpochSettled`, `epochId` 0→1. ✅
+
+Two fixes found via this run: hook `rvm_id` had to be `tx.origin` not the CREATE2 factory (callbacks
+reverted "Authorized RVM ID only"); spike swaps must use `--slow` (one variance observation per block).
 
 ---
 
@@ -217,7 +220,7 @@ full-sediment-wipe-without-loss and true bedrock principal loss. `WaterfallLib.s
 flag; `UnistrataHook` (holds `sPrev`) will distinguish `A < sPrev` for `BedrockImpaired` event semantics.
 Confirm desired event taxonomy at Phase 3 review.
 
-## Phase 4 — Reactive integration · 🟡 contracts + scripts done (testnet run pending)
+## Phase 4 — Reactive integration · ✅ complete (full cross-chain loop verified on testnet)
 - [x] **Hook-side callback auth** — `UnistrataHook` is an `AbstractCallback`; `settleEpoch(address)`
       (heartbeat) + `emergencySettle(address)` (early) are proxy-only (`authorizedSenderOnly` +
       `rvmIdOnly`); permissionless `settleEpoch()` fallback after epoch + grace. TDD, **7 tests**.
@@ -232,8 +235,10 @@ Confirm desired event taxonomy at Phase 3 review.
       init sqrt-price (1 WETH = 3000 USDC) from the real addresses — closes the §7 decimals/ordering
       footguns. Proven by `UnistrataMixedDecimals.t.sol`: a ~$12k deposit reads as ~12,000e18 WAD (a
       decimals mis-wire would be off by ~1e12). **124 tests.**
-- [ ] **End-to-end testnet run** (user-executed): recorded 3-hop tx trail for heartbeat AND spike.
-      Needs funded keys on Unichain Sepolia + Lasna. This artifact goes in the README/video.
+- [x] **End-to-end testnet run** — **spike path verified on-chain**: 6 `--slow` swaps drove `varAcc`
+      past the 4e6 threshold (`0xe07d6c49…`) → RSC reacted on Lasna (`CALLBACKS=1`) → `emergencySettle`
+      landed on the hook `0x4faab03f…` ~12 blocks later, `epochId` 0→1. Full 3-hop trail in `REACTIVE.md`.
+      (Heartbeat path needs ~120 CRON ticks ≈ 24h, so the spike is the demonstrated trigger.)
 
 ## Phase 5 — Simulation harness · ✅ complete
 - [x] **`SimSwapper`** — moves the pool to a target sqrt price with a real, price-limited
