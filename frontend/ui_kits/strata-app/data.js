@@ -83,8 +83,12 @@
 
   window.StrataData = {
     P0, TVL, SENIOR0, JUNIOR0, SCALE_MAX, N,
-    scenarios,
-    events: epochs,
+    // REAL Phase-5 money-chart data (sim/out/*.json); synthetic build() is the offline fallback.
+    scenarios: window.StrataSimData || scenarios,
+    // REAL verified spike event trail from the live testnet deployment (fallback: mock ledger).
+    events: (window.StrataTestnet && window.StrataTestnet.events) || epochs,
+    // REAL live hook state on Unichain Sepolia (NAV / epoch / varAcc) for the Observatory.
+    live: window.StrataTestnet || null,
     pool: {
       pair: 'ETH / USDC', tvl: TVL, senior: SENIOR0, junior: JUNIOR0,
       splitSenior: 0.675, splitJunior: 0.325,

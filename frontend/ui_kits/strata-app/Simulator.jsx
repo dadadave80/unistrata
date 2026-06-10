@@ -44,15 +44,17 @@ function Simulator() {
     const e = document.createElement('style'); e.id = 'sm-css'; e.textContent = simCSS; document.head.appendChild(e);
   }, []);
   const [scn, setScn] = React.useState('crash');
-  const [idx, setIdx] = React.useState(SM.N - 1);
   const data = SM.scenarios[scn];
-  const i = Math.min(idx, SM.N - 1);
+  const N = data.price.length;                       // real sim/out scenarios are per-epoch (variable length)
+  const [idx, setIdx] = React.useState(N - 1);
+  const i = Math.min(idx, N - 1);
   const price = data.price[i];
   const sNav = data.seniorNav[i];
   const jNav = data.juniorNav[i];
-  const progress = i / (SM.N - 1);
-  const hours = Math.round(progress * 72);
-  const change = ((price / SM.P0 - 1) * 100);
+  const j0 = data.juniorNav[0];
+  const progress = N > 1 ? i / (N - 1) : 1;
+  const change = ((price / data.price[0] - 1) * 100);
+  const scaleMax = data.scaleMax || SM.SCALE_MAX;
 
   return (
     <div>
@@ -63,7 +65,7 @@ function Simulator() {
         </div>
         <div className="sm__pills">
           {SCN.map(s => (
-            <button key={s.id} className="sm__pill" data-on={scn === s.id} onClick={() => setScn(s.id)}>{s.label}</button>
+            <button key={s.id} className="sm__pill" data-on={scn === s.id} onClick={() => { setScn(s.id); setIdx(SM.scenarios[s.id].price.length - 1); }}>{s.label}</button>
           ))}
         </div>
       </div>
@@ -72,15 +74,15 @@ function Simulator() {
         <Panel padded>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-5)' }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>Capital structure</span>
-            <Badge variant={change < -1 ? 'negative' : change > 1 ? 'senior' : 'neutral'} dot>{change >= 0 ? '+' : ''}{change.toFixed(1)}% ETH</Badge>
+            <Badge variant={change < -1 ? 'negative' : change > 1 ? 'senior' : 'neutral'} dot>{change >= 0 ? '+' : ''}{change.toFixed(1)}% tWETH</Badge>
           </div>
           <div className="sm-fast">
-            <StrataCore seniorNav={sNav} juniorNav={jNav} scaleMax={SM.SCALE_MAX} height={320} />
+            <StrataCore seniorNav={sNav} juniorNav={jNav} scaleMax={scaleMax} height={320} />
           </div>
           <div className="sm__readouts">
             <div className="sm__rd"><Stat label="Bedrock NAV" tone="senior" size="sm" value={<NumberTicker value={sNav} prefix="$" duration={120} />} /></div>
             <div className="sm__rd"><Stat label="Sediment NAV" tone="junior" size="sm" value={<NumberTicker value={jNav} prefix="$" duration={120} />} /></div>
-            <div className="sm__rd"><Stat label="Sediment drawdown" size="sm" value={<NumberTicker value={(jNav / SM.JUNIOR0 - 1) * 100} decimals={1} suffix="%" duration={120} />} /></div>
+            <div className="sm__rd"><Stat label="Sediment drawdown" size="sm" value={<NumberTicker value={(jNav / j0 - 1) * 100} decimals={1} suffix="%" duration={120} />} /></div>
           </div>
         </Panel>
 
@@ -92,12 +94,12 @@ function Simulator() {
 
       <div className="sm__scrub">
         <div className="sm__scrubhead">
-          <span className="sm__time">t + {hours}h of 72h · {data.name} scenario</span>
-          <span className="sm__price">ETH {SM.fmtUsd(price, 0).replace('$', '$')}</span>
+          <span className="sm__time">epoch {i} of {N - 1} · {data.name} scenario · replayed from sim/out</span>
+          <span className="sm__price">tWETH {SM.fmtUsd(price, 0)}</span>
         </div>
-        <input className="sm__range" type="range" min="0" max={SM.N - 1} value={idx}
+        <input className="sm__range" type="range" min="0" max={N - 1} value={i}
           onInput={(e) => setIdx(Number(e.target.value))} onChange={(e) => setIdx(Number(e.target.value))} />
-        <div className="sm__ticks"><span>t0 · $3,400</span><span>scrub the 72-hour path</span><span>t72</span></div>
+        <div className="sm__ticks"><span>epoch 0 · {SM.fmtUsd(data.price[0], 0)}</span><span>scrub the settled epochs</span><span>epoch {N - 1}</span></div>
       </div>
     </div>
   );
