@@ -41,6 +41,7 @@ contract StrataDepositTest is BaseTest {
             dCap: 1000,
             epochDuration: 1 days,
             gracePeriod: 1 hours,
+            guardBand: 887272,
             lambdaRisk: 1.25e18,
             rMin: 0,
             rMax: 0.5e18,

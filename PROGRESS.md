@@ -166,9 +166,13 @@ and pass the per-epoch delta to `annualizedVariance`, and must seed `(block, tic
       FullMath accrual, signed net deposits, floor-at-0, coupon-honesty floor); `settle` (min-split,
       exact conservation, literal impairment flag). Design cross-checked by lib-design workflow's
       adversarial critic (reconciled before impl: single-step ceil reserve, two-step accrual, bounds guard).
-- [ ] `settleEpoch` in StrataHook: price guard (GUARD_BAND), epoch roll, withdrawal-queue settlement,
-      `SeniorImpaired` (refine literal flag → principal loss `A < sPrev`), `EpochSettled` event.
-- [ ] §6 invariant tests (1–4) on the integrated hook.
+- [x] **`settleEpoch`** in StrataHook — mark-to-market, waterfall split, price guard (GUARD_BAND),
+      fee collection via poke, epoch roll + coupon reprice, **two impairment events** (`SeniorImpaired`
+      on principal loss `A<sPrev`, else `SeniorBelowCoupon`), `EpochSettled`. TDD, **6 integration tests**
+      (conservation, coupon honesty, junior-absorbs-IL/senior-protected, reprice, guard revert, not-elapsed). ✅
+- [ ] withdrawal-queue settlement (deferred — deposits + settlement proven; withdrawals next)
+- [~] §6 invariants: **1 (conservation) + 3 (coupon honesty) demonstrated** in settle integration tests;
+      formal Foundry stateful-invariant harness (10k runs, inv. 2 + 4) still to add.
 
 **Open design note (Phase 3 gate review):** the brief's literal impairment flag fires for both
 full-junior-wipe-without-loss and true senior principal loss. `WaterfallLib.settle` returns the literal

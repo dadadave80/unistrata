@@ -17,6 +17,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {TrancheToken} from "src/TrancheToken.sol";
 import {NavLib} from "src/libraries/NavLib.sol";
 import {VarianceLib} from "src/libraries/VarianceLib.sol";
+import {WaterfallLib} from "src/libraries/WaterfallLib.sol";
 
 /// @title StrataHook
 /// @notice Uniswap v4 hook that turns one pool into a senior/junior capital structure (Strata).
@@ -39,6 +40,7 @@ contract StrataHook is BaseHook {
         uint24 dCap; // §3.3 max per-block tick delta counted
         uint64 epochDuration; // §3.5 epoch length (seconds)
         uint64 gracePeriod; // §3.7 permissionless-settle grace after epoch end
+        uint256 guardBand; // §3.5 max |currentTick − sampledTick| allowed at settlement
         uint256 lambdaRisk; // §3.4 coupon risk loading (WAD)
         uint256 rMin; // §3.4 coupon clamp low (WAD APR)
         uint256 rMax; // §3.4 coupon clamp high (WAD APR)
@@ -46,12 +48,9 @@ contract StrataHook is BaseHook {
         uint256 thetaMax; // §3.6 senior attachment-point cap (WAD fraction)
     }
 
-    /// @dev Encoded into PoolManager.unlock for a deposit.
-    struct CallbackData {
-        address user;
-        bool isSenior;
-        uint256 amount0Max;
-        uint256 amount1Max;
+    enum Action {
+        Deposit,
+        Settle
     }
 
     error StrataHook__OnlyHookLiquidity();
@@ -60,12 +59,28 @@ contract StrataHook is BaseHook {
     error StrataHook__ZeroLiquidity();
     error StrataHook__DepositTooSmall();
     error StrataHook__AttachmentCapExceeded();
+    error StrataHook__EpochNotElapsed();
+    error StrataHook__SettlementPriceOutOfBand();
 
     /// @notice Emitted once per new-block observation; the Reactive circuit breaker subscribes to this.
     event StrataObservation(int24 blockTickDelta, uint256 varAcc);
     event Deposit(address indexed user, bool isSenior, uint256 amount0, uint256 amount1, uint256 value, uint256 shares);
+    event EpochSettled(
+        uint256 indexed epochId,
+        uint256 totalAssets,
+        uint256 seniorNav,
+        uint256 juniorNav,
+        uint256 realizedVar,
+        uint256 feesEarned,
+        uint256 newRate
+    );
+    /// @notice Senior took a principal loss (A < S_prev): junior fully exhausted.
+    event SeniorImpaired(uint256 indexed epochId, uint256 seniorPrev, uint256 seniorNew);
+    /// @notice Junior exhausted and senior grew but fell short of its coupon (no principal loss).
+    event SeniorBelowCoupon(uint256 indexed epochId, uint256 seniorTarget, uint256 seniorNew);
 
     uint256 internal constant WAD = 1e18;
+    uint256 internal constant SECONDS_PER_YEAR = 365 days;
     uint256 internal constant DEAD_SHARES = 1000;
     address internal constant DEAD_ADDRESS = address(0xdead);
     bytes32 internal constant POSITION_SALT = bytes32(0);
@@ -81,6 +96,7 @@ contract StrataHook is BaseHook {
     uint24 public immutable dCap;
     uint64 public immutable epochDuration;
     uint64 public immutable gracePeriod;
+    uint256 public immutable guardBand;
     uint256 public immutable lambdaRisk;
     uint256 public immutable rMin;
     uint256 public immutable rMax;
@@ -98,10 +114,18 @@ contract StrataHook is BaseHook {
     uint256 public seniorNav;
     uint256 public juniorNav;
 
+    // --- epoch state (brief §3.4/§3.5) ---
+    uint256 public epochId;
+    uint256 public epochStart;
+    uint256 public seniorRate; // r_epoch, fixed at the start of the current epoch (WAD APR)
+    uint256 public sigma2Ewma;
+    uint256 public feeYieldEwma;
+
     // --- variance oracle state (brief §3.3) ---
     uint48 public lastObservedBlock;
     int24 public lastObservedTick;
     uint256 public varAcc;
+    uint256 public varAccAtEpochStart;
 
     constructor(IPoolManager _poolManager, Config memory cfg) BaseHook(_poolManager) {
         senior = new TrancheToken("Strata Senior", "sSTR", address(this));
@@ -113,6 +137,7 @@ contract StrataHook is BaseHook {
         dCap = cfg.dCap;
         epochDuration = cfg.epochDuration;
         gracePeriod = cfg.gracePeriod;
+        guardBand = cfg.guardBand;
         lambdaRisk = cfg.lambdaRisk;
         rMin = cfg.rMin;
         rMax = cfg.rMax;
@@ -133,11 +158,8 @@ contract StrataHook is BaseHook {
     function deposit(bool isSenior, uint256 amount0Max, uint256 amount1Max) external returns (uint256 shares) {
         if (!poolInitialized) revert StrataHook__NotInitialized();
 
-        bytes memory res = poolManager.unlock(
-            abi.encode(
-                CallbackData({user: msg.sender, isSenior: isSenior, amount0Max: amount0Max, amount1Max: amount1Max})
-            )
-        );
+        bytes memory res =
+            poolManager.unlock(abi.encode(Action.Deposit, abi.encode(msg.sender, isSenior, amount0Max, amount1Max)));
         (uint256 depositValue, uint256 used0, uint256 used1) = abi.decode(res, (uint256, uint256, uint256));
 
         uint256 oldNav = isSenior ? seniorNav : juniorNav;
@@ -153,16 +175,93 @@ contract StrataHook is BaseHook {
         emit Deposit(msg.sender, isSenior, used0, used1, depositValue, shares);
     }
 
-    /// @dev PoolManager unlock callback: add the hook-owned full-range liquidity and settle the owed
-    ///      tokens directly from the depositor. Returns (depositValue, used0, used1).
+    //*//////////////////////////////////////////////////////////////////////////
+    //                                SETTLEMENT
+    //////////////////////////////////////////////////////////////////////////*//
+
+    /// @notice Settle the current epoch: mark to market, run the senior/junior waterfall, roll the
+    ///         epoch and re-price the senior coupon. Permissionless once the epoch has elapsed (the
+    ///         Reactive callback path that can fire earlier lands in Phase 4).
+    function settleEpoch() external {
+        if (!poolInitialized) revert StrataHook__NotInitialized();
+        if (block.timestamp < epochStart + epochDuration) revert StrataHook__EpochNotElapsed();
+
+        // §3.5 price guard: reject settlement if the current price is far from our own sampled tick.
+        (, int24 tick,,) = poolManager.getSlot0(boundId);
+        int256 dev = int256(tick) - int256(lastObservedTick);
+        if (dev < 0) dev = -dev;
+        if (uint256(dev) > guardBand) revert StrataHook__SettlementPriceOutOfBand();
+
+        // Collect fees into idle and mark to market through the unlock callback.
+        bytes memory res = poolManager.unlock(abi.encode(Action.Settle, bytes("")));
+        (uint256 A, uint256 feesValue) = abi.decode(res, (uint256, uint256));
+
+        _settleWaterfall(A, feesValue);
+    }
+
+    /// @dev The waterfall split + impairment signals; defers the epoch roll to keep the stack shallow.
+    function _settleWaterfall(uint256 A, uint256 feesValue) internal {
+        uint256 dt = block.timestamp - epochStart;
+        uint256 sPrev = seniorNav;
+
+        uint256 sTarget = WaterfallLib.seniorTarget(sPrev, seniorRate, dt, 0);
+        (uint256 sNew, uint256 jNew, bool impaired) = WaterfallLib.settle(A, sTarget);
+
+        // Two distinct impairment signals (the literal §3.5 flag, refined by principal loss).
+        if (sNew < sPrev) {
+            emit SeniorImpaired(epochId, sPrev, sNew);
+        } else if (impaired) {
+            emit SeniorBelowCoupon(epochId, sTarget, sNew);
+        }
+
+        seniorNav = sNew;
+        juniorNav = jNew;
+
+        _rollEpoch(A, feesValue, dt);
+    }
+
+    /// @dev Roll the epoch clock, update the variance + fee EWMAs, and re-price the senior coupon.
+    function _rollEpoch(uint256 A, uint256 feesValue, uint256 dt) internal {
+        uint256 varDelta = varAcc - varAccAtEpochStart;
+        uint256 sigma2 = dt == 0 ? 0 : VarianceLib.annualizedVariance(varDelta, dt);
+        sigma2Ewma = VarianceLib.ewma(sigma2Ewma, sigma2, lambdaSmoothing);
+
+        // Annualized fee yield (WAD) = (feesValue / A) · (year / dt), relative to pool value.
+        uint256 feeYield = (A == 0 || dt == 0) ? 0 : Math.mulDiv(feesValue, WAD * SECONDS_PER_YEAR, A * dt);
+        feeYieldEwma = VarianceLib.ewma(feeYieldEwma, feeYield, lambdaSmoothing);
+
+        seniorRate = WaterfallLib.couponRate(feeYieldEwma, sigma2Ewma, lambdaRisk, rMin, rMax);
+
+        uint256 settledId = epochId;
+        epochId = settledId + 1;
+        epochStart = block.timestamp;
+        varAccAtEpochStart = varAcc;
+
+        emit EpochSettled(settledId, A, seniorNav, juniorNav, varDelta, feesValue, seniorRate);
+    }
+
+    //*//////////////////////////////////////////////////////////////////////////
+    //                              UNLOCK CALLBACK
+    //////////////////////////////////////////////////////////////////////////*//
+
+    /// @dev PoolManager unlock callback dispatcher for deposit and settlement actions.
     function unlockCallback(bytes calldata data) external onlyPoolManager returns (bytes memory) {
-        CallbackData memory cb = abi.decode(data, (CallbackData));
+        (Action action, bytes memory payload) = abi.decode(data, (Action, bytes));
+        if (action == Action.Deposit) {
+            return _unlockDeposit(payload);
+        }
+        return _unlockSettle();
+    }
+
+    /// @dev Add the hook-owned full-range liquidity and settle the owed tokens from the depositor.
+    function _unlockDeposit(bytes memory payload) internal returns (bytes memory) {
+        (address user,, uint256 amount0Max, uint256 amount1Max) = abi.decode(payload, (address, bool, uint256, uint256));
 
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(boundId);
         (,, uint160 sqrtLower, uint160 sqrtUpper) = NavLib.fullRangeBounds(boundKey.tickSpacing);
 
         uint128 liquidity =
-            LiquidityAmounts.getLiquidityForAmounts(sqrtPriceX96, sqrtLower, sqrtUpper, cb.amount0Max, cb.amount1Max);
+            LiquidityAmounts.getLiquidityForAmounts(sqrtPriceX96, sqrtLower, sqrtUpper, amount0Max, amount1Max);
         if (liquidity == 0) revert StrataHook__ZeroLiquidity();
 
         (BalanceDelta delta,) = poolManager.modifyLiquidity(
@@ -176,20 +275,40 @@ contract StrataHook is BaseHook {
             ""
         );
 
-        uint256 used0 = _settleLeg(boundKey.currency0, delta.amount0(), cb.user);
-        uint256 used1 = _settleLeg(boundKey.currency1, delta.amount1(), cb.user);
+        uint256 used0 = _settleLeg(boundKey.currency0, delta.amount0(), user);
+        uint256 used1 = _settleLeg(boundKey.currency1, delta.amount1(), user);
 
         uint256 depositValue =
             NavLib.valueInNumeraire(used0, used1, sqrtPriceX96, numeraireIsToken1, decimals0, decimals1);
         return abi.encode(depositValue, used0, used1);
     }
 
+    /// @dev Poke the position to realize fees into the hook's idle balance, then mark to market.
+    function _unlockSettle() internal returns (bytes memory) {
+        (, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(
+            boundKey,
+            ModifyLiquidityParams({tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: 0, salt: POSITION_SALT}),
+            ""
+        );
+
+        int128 f0 = feesAccrued.amount0();
+        int128 f1 = feesAccrued.amount1();
+        uint256 fee0 = f0 > 0 ? uint256(uint128(f0)) : 0;
+        uint256 fee1 = f1 > 0 ? uint256(uint128(f1)) : 0;
+        if (fee0 > 0) boundKey.currency0.take(poolManager, address(this), fee0, false);
+        if (fee1 > 0) boundKey.currency1.take(poolManager, address(this), fee1, false);
+
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(boundId);
+        uint256 feesValue = NavLib.valueInNumeraire(fee0, fee1, sqrtPriceX96, numeraireIsToken1, decimals0, decimals1);
+        return abi.encode(totalAssets(), feesValue);
+    }
+
     //*//////////////////////////////////////////////////////////////////////////
-    //                              VIEWS
+    //                                  VIEWS
     //////////////////////////////////////////////////////////////////////////*//
 
     /// @notice Mark-to-market value of all hook-owned assets in the numéraire (WAD): position + idle.
-    /// @dev Uncollected fees are folded in once afterSwap fee-growth snapshots land (settle slice).
+    /// @dev Uncollected fees sit in the live position until {settleEpoch} pokes them into idle.
     function totalAssets() public view returns (uint256) {
         if (!poolInitialized) return 0;
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(boundId);
@@ -204,7 +323,6 @@ contract StrataHook is BaseHook {
 
     /// @notice Remaining senior capacity (numéraire WAD) before the attachment-point cap binds.
     function seniorCapacityRemaining() external view returns (uint256) {
-        // S_max such that S_max/(S_max+J) = θ ⇒ S_max = θ·J/(1−θ); capacity = S_max − S (floored at 0).
         if (thetaMax >= WAD) return type(uint256).max;
         uint256 sMax = Math.mulDiv(thetaMax, juniorNav, WAD - thetaMax);
         return sMax > seniorNav ? sMax - seniorNav : 0;
@@ -279,7 +397,7 @@ contract StrataHook is BaseHook {
     //                              HOOK CALLBACKS
     //////////////////////////////////////////////////////////////////////////*//
 
-    /// @dev Bind to the first pool only; seed the variance pair and cache the full-range ticks.
+    /// @dev Bind to the first pool only; seed the variance pair, epoch clock, and full-range ticks.
     function _afterInitialize(address, PoolKey calldata key, uint160, int24 tick) internal override returns (bytes4) {
         if (poolInitialized) revert StrataHook__AlreadyInitialized();
         poolInitialized = true;
@@ -289,6 +407,9 @@ contract StrataHook is BaseHook {
         lastObservedBlock = uint48(block.number);
         lastObservedTick = tick;
         (tickLower, tickUpper,,) = NavLib.fullRangeBounds(key.tickSpacing);
+
+        epochStart = block.timestamp;
+        seniorRate = rMin; // no history yet → coupon floored
 
         return BaseHook.afterInitialize.selector;
     }
