@@ -129,8 +129,21 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
 - [ ] StrataHook vault: deposit (both tranches), share mint at NAV, hook-owned full-range liquidity
       via `unlock`, withdrawal queue, NAV views, attachment-point cap, dead-shares guard.
 
-## Phase 2 — Variance oracle · ⬜ not started (design workflow running)
-## Phase 3 — Settlement waterfall · ⬜ not started (design workflow running)
+## Phase 2 — Variance oracle · ⬜ not started (spec ready from lib-design workflow)
+## Phase 3 — Settlement waterfall · 🟡 in progress
+- [x] `WaterfallLib` — pure coupon pricing + settlement math (TDD, **21 tests**). `couponRate`
+      (clamp, ceil-rounded reserve λ·σ²/8, `InvalidRateBounds` guard); `seniorTarget` (two-step
+      FullMath accrual, signed net deposits, floor-at-0, coupon-honesty floor); `settle` (min-split,
+      exact conservation, literal impairment flag). Design cross-checked by lib-design workflow's
+      adversarial critic (reconciled before impl: single-step ceil reserve, two-step accrual, bounds guard).
+- [ ] `settleEpoch` in StrataHook: price guard (GUARD_BAND), epoch roll, withdrawal-queue settlement,
+      `SeniorImpaired` (refine literal flag → principal loss `A < sPrev`), `EpochSettled` event.
+- [ ] §6 invariant tests (1–4) on the integrated hook.
+
+**Open design note (Phase 3 gate review):** the brief's literal impairment flag fires for both
+full-junior-wipe-without-loss and true senior principal loss. `WaterfallLib.settle` returns the literal
+flag; `StrataHook` (holds `sPrev`) will distinguish `A < sPrev` for `SeniorImpaired` event semantics.
+Confirm desired event taxonomy at Phase 3 review.
 
 (Phases 4–7 out of current session scope.)
 
