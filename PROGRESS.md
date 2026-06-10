@@ -183,7 +183,19 @@ full-junior-wipe-without-loss and true senior principal loss. `WaterfallLib.sett
 flag; `StrataHook` (holds `sPrev`) will distinguish `A < sPrev` for `SeniorImpaired` event semantics.
 Confirm desired event taxonomy at Phase 3 review.
 
-(Phases 4–7 out of current session scope.)
+## Phase 4 — Reactive integration · 🟡 contracts + scripts done (testnet run pending)
+- [x] **Hook-side callback auth** — `StrataHook` is an `AbstractCallback`; `settleEpoch(address)`
+      (heartbeat) + `emergencySettle(address)` (early) are proxy-only (`authorizedSenderOnly` +
+      `rvmIdOnly`); permissionless `settleEpoch()` fallback after epoch + grace. TDD, **7 tests**.
+- [x] **`StrataReactive` RSC** — CRON heartbeat (counter, once per epoch) + variance-spike circuit
+      breaker (`emergencySettle`), emits cross-chain `Callback`s; subscriptions in constructor.
+      TDD, **6 react() tests** (local via vm-detection).
+- [x] **Deploy/fund/subscribe scripts** (`script/strata/01_DeployStrata`, `02_DeployReactive`,
+      `03_FundAndSubscribe`) + **`REACTIVE.md` runbook** (verified addresses, sequence, funding, demo capture).
+- [ ] **End-to-end testnet run** (user-executed): recorded 3-hop tx trail for heartbeat AND spike.
+      Needs funded keys on Unichain Sepolia + Lasna. This artifact goes in the README/video.
+
+## Phases 5–7 — out of current session scope (sim harness → money chart, frontend, polish/video).
 
 ---
 
