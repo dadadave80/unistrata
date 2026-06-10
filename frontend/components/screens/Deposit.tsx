@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { parseUnits, maxUint256, formatUnits } from 'viem';
+import { parseUnits, formatUnits } from 'viem';
 import { useAccount, useReadContracts, useWriteContract } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
 import { Button } from '@/components/Button';
@@ -82,16 +82,21 @@ export function Deposit() {
   const sharePrice = isSenior ? 1.0 : 0.97;
   const shares = amount / sharePrice;
 
-  // live balances of the connected wallet
+  // live balances + current allowances of the connected wallet
+  const ZERO = '0x0000000000000000000000000000000000000000';
   const { data: bals, refetch: refetchBals } = useReadContracts({
     contracts: [
-      { address: TOKEN_USDC, abi: erc20Abi, functionName: 'balanceOf', args: [address ?? '0x0000000000000000000000000000000000000000'], chainId: CHAIN_ID },
-      { address: TOKEN_WETH, abi: erc20Abi, functionName: 'balanceOf', args: [address ?? '0x0000000000000000000000000000000000000000'], chainId: CHAIN_ID },
+      { address: TOKEN_USDC, abi: erc20Abi, functionName: 'balanceOf', args: [address ?? ZERO], chainId: CHAIN_ID },
+      { address: TOKEN_WETH, abi: erc20Abi, functionName: 'balanceOf', args: [address ?? ZERO], chainId: CHAIN_ID },
+      { address: TOKEN0, abi: erc20Abi, functionName: 'allowance', args: [address ?? ZERO, HOOK_ADDRESS], chainId: CHAIN_ID },
+      { address: TOKEN1, abi: erc20Abi, functionName: 'allowance', args: [address ?? ZERO, HOOK_ADDRESS], chainId: CHAIN_ID },
     ],
     query: { enabled: isConnected },
   });
   const usdcBal = bals && bals[0].status === 'success' ? Number(formatUnits(bals[0].result as bigint, 6)) : 0;
   const wethBal = bals && bals[1].status === 'success' ? Number(formatUnits(bals[1].result as bigint, 18)) : 0;
+  const allow0 = bals && bals[2].status === 'success' ? (bals[2].result as bigint) : 0n;
+  const allow1 = bals && bals[3].status === 'success' ? (bals[3].result as bigint) : 0n;
 
   // Testnet faucet — DemoERC20.mint is permissionless, so the wallet mints to itself.
   // Mints 10,000 tUSDC (+ tWETH so a balanced deposit actually works).
@@ -117,10 +122,17 @@ export function Deposit() {
       // amount0 = tUSDC (6 dec), amount1 = tWETH (18 dec) ≈ balanced at 1 tWETH = 3000 tUSDC.
       const amount0Max = parseUnits(String(amount), 6);
       const amount1Max = parseUnits((amount / 3000).toFixed(18), 18);
-      await writeContractAsync({ address: TOKEN0, abi: erc20Abi, functionName: 'approve', args: [HOOK_ADDRESS, maxUint256], chainId: CHAIN_ID });
-      await writeContractAsync({ address: TOKEN1, abi: erc20Abi, functionName: 'approve', args: [HOOK_ADDRESS, maxUint256], chainId: CHAIN_ID });
+      // EXACT approvals — only what this deposit needs, and only if the current allowance is short.
+      // No unbounded maxUint256 grant; the hook consumes it on deposit, so no standing approval lingers.
+      if (allow0 < amount0Max) {
+        await writeContractAsync({ address: TOKEN0, abi: erc20Abi, functionName: 'approve', args: [HOOK_ADDRESS, amount0Max], chainId: CHAIN_ID });
+      }
+      if (allow1 < amount1Max) {
+        await writeContractAsync({ address: TOKEN1, abi: erc20Abi, functionName: 'approve', args: [HOOK_ADDRESS, amount1Max], chainId: CHAIN_ID });
+      }
       const tx = await writeContractAsync({ address: HOOK_ADDRESS, abi: hookAbi, functionName: 'deposit', args: [isSenior, amount0Max, amount1Max], chainId: CHAIN_ID });
       setDepTx(tx);
+      await refetchBals();
     } catch (e: unknown) {
       const m = e instanceof Error ? e.message : String(e);
       setErr(m.length > 140 ? m.slice(0, 140) + '…' : m);
