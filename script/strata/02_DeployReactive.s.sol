@@ -2,7 +2,8 @@
 pragma solidity ^0.8.30;
 
 import {StrataReactive} from "../../src/reactive/StrataReactive.sol";
-import {Script} from "forge-std/Script.sol";
+import {EnvWriter} from "./EnvWriter.sol";
+import {Script, console2} from "forge-std/Script.sol";
 
 /// @notice Deploys the StrataReactive RSC on the Reactive Network (Lasna, chainId 5318007). The
 ///         constructor registers both subscriptions (CRON heartbeat + the hook's StrataObservation),
@@ -32,7 +33,7 @@ contract DeployReactiveScript is Script {
         );
         vm.stopBroadcast();
 
-        // Record STRATA_REACTIVE = address(rsc) for 03_FundAndSubscribe and the submission.
-        rsc;
+        console2.log("STRATA_REACTIVE=%s", address(rsc));
+        EnvWriter.upsert(".env", "STRATA_REACTIVE", vm.toString(address(rsc)));
     }
 }

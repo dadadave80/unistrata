@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {DemoERC20} from "./DemoERC20.sol";
+import {EnvWriter} from "./EnvWriter.sol";
 import {Script, console2} from "forge-std/Script.sol";
 
 /// @notice Deploys the demo pool tokens — tWETH (18 dec) + tUSDC (6 dec) — and mints a starting
@@ -22,5 +23,9 @@ contract DeployMockTokensScript is Script {
 
         console2.log("TOKEN_WETH=%s", address(tWETH));
         console2.log("TOKEN_USDC=%s", address(tUSDC));
+
+        // persist for 01_DeployStrata (forge auto-loads .env on the next invocation)
+        EnvWriter.upsert(".env", "TOKEN_WETH", vm.toString(address(tWETH)));
+        EnvWriter.upsert(".env", "TOKEN_USDC", vm.toString(address(tUSDC)));
     }
 }

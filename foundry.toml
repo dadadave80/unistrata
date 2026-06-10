@@ -4,10 +4,14 @@ out = "out"
 libs = ["lib"]
 evm_version = "cancun"
 solc_version = "0.8.34"
-optimizer_runs = 999_999
+optimizer_runs = 444_444
 via_ir = false
 ffi = true
-fs_permissions = [{access = "read-write", path = ".forge-snapshots/"}, {access = "read-write", path = "sim/"}]
+fs_permissions = [
+    { access = "read-write", path = ".forge-snapshots/" },
+    { access = "read-write", path = "sim/" },
+    { access = "read-write", path = ".env" },
+]
 # Disable metadata hash for deterministic bytecode
 bytecode_hash = "none"
 cbor_metadata = false
@@ -24,3 +28,7 @@ runs = 256
 depth = 30
 fail_on_revert = false
 # CI can crank runs up (brief §6 targets ~10k): forge test --match-path 'test/invariant/*' with FOUNDRY_INVARIANT_RUNS=10000
+
+[rpc_endpoints]
+unichain_sep = "${UNICHAIN_SEPOLIA_URL}"
+reactive_lasna = "${REACTIVE_LASNA_URL}"

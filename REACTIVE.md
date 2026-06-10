@@ -49,31 +49,34 @@ stored `rvm_id` matches the callbacks the RSC originates.
 
 ## Deploy sequence
 
+Each script **writes its deployed addresses to `.env`** (`TOKEN_WETH`/`TOKEN_USDC` → `STRATA_HOOK` →
+`STRATA_REACTIVE`) via an idempotent upsert, and `forge` **auto-loads `.env`** at startup — so each
+step reads what the previous one wrote. No manual address copy-paste. (`.env` is gitignored.)
+
 ```bash
 # 0. Demo pool tokens — tWETH (18 dec) + tUSDC (6 dec), minted to your deployer.
+#    → writes TOKEN_WETH, TOKEN_USDC to .env
 forge script script/strata/00_DeployMockTokens.s.sol \
   --rpc-url $UNICHAIN_SEPOLIA_RPC --account $ACCOUNT --sender $SENDER --broadcast
-# → note TOKEN_WETH and TOKEN_USDC from the logs
 
-# 1. Hook + pool on the origin chain. Mines the flag address; DERIVES decimals/numéraire/init-price
-#    from the token addresses (v4 sorts by address) at 1 tWETH = TARGET_PRICE tUSDC (default 3000).
-TOKEN_WETH=0x... TOKEN_USDC=0x... TARGET_PRICE=3000 \
-forge script script/strata/01_DeployStrata.s.sol \
+# 1. Hook + pool on the origin chain. Reads TOKEN_WETH/TOKEN_USDC from .env; mines the flag address;
+#    DERIVES decimals/numéraire/init-price (v4 sorts by address) at 1 tWETH = TARGET_PRICE tUSDC
+#    (default 3000). → writes STRATA_HOOK to .env
+[TARGET_PRICE=3000] forge script script/strata/01_DeployStrata.s.sol \
   --rpc-url $UNICHAIN_SEPOLIA_RPC --account $ACCOUNT --sender $SENDER --broadcast
-# → note STRATA_HOOK
 
-# 2. RSC on Lasna (constructor registers both subscriptions = "deploy is subscribe").
-STRATA_HOOK=0x... forge script script/strata/02_DeployReactive.s.sol \
+# 2. RSC on Lasna (constructor registers both subscriptions = "deploy is subscribe"). Reads
+#    STRATA_HOOK from .env. → writes STRATA_REACTIVE to .env
+forge script script/strata/02_DeployReactive.s.sol \
   --rpc-url https://lasna-rpc.rnk.dev/ --account $ACCOUNT --sender $SENDER --broadcast
-# → note STRATA_REACTIVE
 
-# 3a. Fund the hook (destination callback contract) via the callback proxy on the origin chain.
-STRATA_HOOK=0x... HOOK_FUNDING_WEI=50000000000000000 \
+# 3a. Fund the hook (destination callback contract) via the callback proxy. Reads STRATA_HOOK from .env.
+HOOK_FUNDING_WEI=50000000000000000 \
   forge script script/strata/03_FundAndSubscribe.s.sol --sig "fundHook()" \
   --rpc-url $UNICHAIN_SEPOLIA_RPC --account $ACCOUNT --sender $SENDER --broadcast
 
-# 3b. Top up the RSC on Lasna (covers reactive-tx / callback emission costs).
-STRATA_REACTIVE=0x... RSC_FUNDING_WEI=... \
+# 3b. Top up the RSC on Lasna. Reads STRATA_REACTIVE from .env.
+RSC_FUNDING_WEI=... \
   forge script script/strata/03_FundAndSubscribe.s.sol --sig "fundReactive()" \
   --rpc-url https://lasna-rpc.rnk.dev/ --account $ACCOUNT --sender $SENDER --broadcast
 ```

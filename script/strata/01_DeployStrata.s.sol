@@ -10,6 +10,7 @@ import {console2} from "forge-std/Script.sol";
 
 import {StrataHook} from "../../src/StrataHook.sol";
 import {BaseScript} from "../base/BaseScript.sol";
+import {EnvWriter} from "./EnvWriter.sol";
 import {StrataDeploy} from "./StrataDeploy.sol";
 
 /// @notice Mines the StrataHook address (afterInitialize|afterSwap|beforeAddLiquidity flags), deploys
@@ -70,5 +71,8 @@ contract DeployStrataScript is BaseScript {
 
         console2.log("STRATA_HOOK=%s", address(hook));
         console2.log("numeraireIsToken1=%s sqrtPriceX96=%s", numeraireIsToken1, uint256(sqrtPriceX96));
+
+        // persist for 02_DeployReactive / 03_FundAndSubscribe
+        EnvWriter.upsert(".env", "STRATA_HOOK", vm.toString(address(hook)));
     }
 }
