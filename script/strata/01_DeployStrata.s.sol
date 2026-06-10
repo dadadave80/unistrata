@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
-import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
-import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 
-import {BaseScript} from "../base/BaseScript.sol";
 import {StrataHook} from "../../src/StrataHook.sol";
+import {BaseScript} from "../base/BaseScript.sol";
 
 /// @notice Mines the StrataHook address (afterInitialize|afterSwap|beforeAddLiquidity flags), deploys
 ///         it on the ORIGIN chain (Unichain Sepolia 1301) with the canonical PoolManager + the

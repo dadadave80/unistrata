@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
 import {CurrencySettler} from "@openzeppelin/uniswap-hooks/src/utils/CurrencySettler.sol";
 import {AbstractCallback} from "reactive-lib/abstract-base/AbstractCallback.sol";
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
-import {PoolKey} from "v4-core/src/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {ModifyLiquidityParams, SwapParams} from "v4-core/src/types/PoolOperation.sol";
+import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "v4-core/src/types/BalanceDelta.sol";
 import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
-import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
+import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {ModifyLiquidityParams, SwapParams} from "v4-core/src/types/PoolOperation.sol";
 import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {TrancheToken} from "src/TrancheToken.sol";
 import {NavLib} from "src/libraries/NavLib.sol";
@@ -29,6 +29,8 @@ import {WaterfallLib} from "src/libraries/WaterfallLib.sol";
 ///      It is also a Reactive callback receiver — `settleEpoch(address)` and `emergencySettle(address)`
 ///      are callable only by the Reactive callback proxy (rvm-id checked), with a permissionless
 ///      `settleEpoch()` fallback after the grace period so the demo never bricks on a missed callback.
+/// @custom:security-contact daveproxy80@gmail.com
+/// @custom:security-contact Discord: daveproxy80
 contract StrataHook is BaseHook, AbstractCallback {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -189,14 +191,14 @@ contract StrataHook is BaseHook, AbstractCallback {
             poolManager.unlock(abi.encode(Action.Deposit, abi.encode(msg.sender, isSenior, amount0Max, amount1Max)));
         (uint256 depositValue, uint256 used0, uint256 used1) = abi.decode(res, (uint256, uint256, uint256));
 
-        uint256 oldNav = isSenior ? seniorNav : juniorNav;
-        shares = _mintShares(isSenior, oldNav, depositValue, msg.sender);
+        uint256 nav = isSenior ? seniorNav : juniorNav;
+        shares = _mintShares(isSenior, nav, depositValue, msg.sender);
 
         if (isSenior) {
-            seniorNav = oldNav + depositValue;
+            seniorNav = nav + depositValue;
             _enforceAttachmentCap();
         } else {
-            juniorNav = oldNav + depositValue;
+            juniorNav = nav + depositValue;
         }
 
         emit Deposit(msg.sender, isSenior, used0, used1, depositValue, shares);
@@ -474,7 +476,7 @@ contract StrataHook is BaseHook, AbstractCallback {
 
     /// @dev Mint tranche shares at the current NAV/share. First deposit carves dead shares to a burn
     ///      address (inflation guard) and mints 1:1; later deposits mint `value·supply/nav`.
-    function _mintShares(bool isSenior, uint256 oldNav, uint256 depositValue, address to)
+    function _mintShares(bool isSenior, uint256 nav, uint256 depositValue, address to)
         internal
         returns (uint256 minted)
     {
@@ -486,7 +488,7 @@ contract StrataHook is BaseHook, AbstractCallback {
             minted = depositValue - DEAD_SHARES;
             token.mint(to, minted);
         } else {
-            minted = Math.mulDiv(depositValue, supply, oldNav);
+            minted = Math.mulDiv(depositValue, supply, nav);
             if (minted == 0) revert StrataHook__DepositTooSmall();
             token.mint(to, minted);
         }

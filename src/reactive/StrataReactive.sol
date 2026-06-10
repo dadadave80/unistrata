@@ -14,6 +14,8 @@ import {AbstractReactive} from "reactive-lib/abstract-base/AbstractReactive.sol"
 ///      in the constructor only on the real Reactive Network (`!vm`); in the ReactVM (or local tests)
 ///      they are skipped. Callback payloads carry a placeholder `address(0)` that the Reactive
 ///      callback proxy replaces with the originating rvm-id.
+/// @custom:security-contact daveproxy80@gmail.com
+/// @custom:security-contact Discord: daveproxy80
 contract StrataReactive is AbstractReactive {
     /// @dev topic_0 of `StrataHook.StrataObservation(int24,uint256)` (both args non-indexed → in data).
     uint256 public constant STRATA_OBSERVATION_TOPIC = uint256(keccak256("StrataObservation(int24,uint256)"));

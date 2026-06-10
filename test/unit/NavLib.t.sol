@@ -2,9 +2,9 @@
 pragma solidity ^0.8.30;
 
 import {Test} from "forge-std/Test.sol";
-import {TickMath} from "v4-core/src/libraries/TickMath.sol";
-import {FixedPoint96} from "v4-core/src/libraries/FixedPoint96.sol";
 import {NavLib} from "src/libraries/NavLib.sol";
+import {FixedPoint96} from "v4-core/src/libraries/FixedPoint96.sol";
+import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 
 /// @notice Pure-valuation unit tests for NavLib (brief §3.5 step-1 mark-to-market primitives).
 /// The stateful `totalAssets(manager,…)` orchestrator is covered in Phase-1 hook integration tests.

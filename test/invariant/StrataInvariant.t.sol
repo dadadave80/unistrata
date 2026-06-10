@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
-import {PoolKey} from "v4-core/src/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {Currency} from "v4-core/src/types/Currency.sol";
-import {Constants} from "v4-core/test/utils/Constants.sol";
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
+import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
+import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
+import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+import {Currency} from "v4-core/src/types/Currency.sol";
+import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {Constants} from "v4-core/test/utils/Constants.sol";
 
 import {BaseTest} from "../utils/BaseTest.sol";
-import {StrataHook} from "src/StrataHook.sol";
 import {StrataHandler} from "./StrataHandler.sol";
+import {StrataHook} from "src/StrataHook.sol";
 
 /// @notice Stateful invariant suite (brief §6). Conservation (1) and seniority (2) are checked
 /// post-settle in the handler; the always-true invariants live here.

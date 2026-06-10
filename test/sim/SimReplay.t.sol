@@ -2,22 +2,22 @@
 pragma solidity ^0.8.30;
 
 import {console2} from "forge-std/console2.sol";
+import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
-import {PoolKey} from "v4-core/src/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {Currency} from "v4-core/src/types/Currency.sol";
-import {Constants} from "v4-core/test/utils/Constants.sol";
+import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
-import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
+import {Currency} from "v4-core/src/types/Currency.sol";
+import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {Constants} from "v4-core/test/utils/Constants.sol";
 
 import {BaseTest} from "../utils/BaseTest.sol";
+import {SimSwapper} from "./SimSwapper.sol";
 import {StrataHook} from "src/StrataHook.sol";
 import {TrancheToken} from "src/TrancheToken.sol";
 import {NavLib} from "src/libraries/NavLib.sol";
-import {SimSwapper} from "./SimSwapper.sol";
 
 /// @notice Phase-5 simulation harness: replays a JSON price path (sim/paths/<scenario>.json) as real
 /// swaps against a local Strata pool, settles epochs on schedule, and exports per-epoch metrics to
