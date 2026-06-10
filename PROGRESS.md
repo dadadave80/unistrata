@@ -10,23 +10,29 @@ deviations from the plan (with reasons). Newest status at the top of each phase.
 
 ## Live testnet deployment (Phase 4 — verified on-chain, FULL LOOP CLOSED 2026-06-11)
 
-Final Unistrata stack — deployed, subscribed, funded, and **demonstrated end-to-end** (addresses in
-`.env`; receipts under `broadcast/`):
+Final Unistrata stack (**Permit2 redeploy, Jun 10 2026**) — deployed, pool-initialized, subscribed, and
+funded (addresses in `.env`; receipts under `broadcast/`). v4 address-sort flipped the order: **token0 =
+tWETH (18), token1 = tUSDC (6)**. The cross-chain loop was verified end-to-end on the prior deployment
+(identical logic, trail below) and is **pending a re-run against this fresh hook** (`04`/`05`/`06`;
+`epochId 0`, no deposits/swaps yet):
 
 | Contract | Chain | Address |
 |---|---|---|
-| tWETH (18) | Unichain Sepolia 1301 | `0x911EcAEde6A8AE982851000C019b063A8688d9DB` |
-| tUSDC (6) | Unichain Sepolia 1301 | `0x4C63d215C51B82A401Bb11236349d7Ef12F1B3B4` |
-| UnistrataHook | Unichain Sepolia 1301 | `0x721480297Fbe8fb1FD72FDab3887D87e59Dcd840` (deploy `0x1dcdfcf4…`, pool init `0x37ff5d3f…`) |
-| UnistrataReactive | Lasna 5318007 | `0x3d156B6E1568A24Cd6977c9FE29F53CF5D741d34` (deploy `0xb6f7239e…`) |
+| tWETH (18, token0) | Unichain Sepolia 1301 | `0x34b4626268da509c69e4cf03b92164b048fb9f8d` |
+| tUSDC (6, token1) | Unichain Sepolia 1301 | `0x5ffa4a8d379cb2471b1d4cdf2f5f2d3eca282dd6` |
+| UnistrataHook | Unichain Sepolia 1301 | `0xfc4f1c6aecad1507dd0ec4af4d72f62378c25840` (deploy `0x4045c5ce…`, pool init `0xd160fc88…`) |
+| UnistrataReactive | Lasna 5318007 | `0x3cad51414bbd94e19c47ef47fe2d65f89e467eea` (deploy `0x362deddd…`) |
 
-Subscribed (two `Subscribe` events, zero `SubscribeFailed`: CRON on 5318007 + UnistrataObservation on the
-hook at 1301). Funded via one multichain `03` run (both `0x1`): hook `0xbe58893e…` + RSC `0x402bd33a…`.
+Tranche tokens: Bedrock `0x3848b7ab…` (**beWETH**) / Sediment `0x953636fc…` (**seWETH**); rvm_id =
+deploying EOA `0xDAdaDA4E…C751`. Subscribed (two `Subscribe` events, zero `SubscribeFailed`: CRON on
+5318007 + UnistrataObservation on the hook at 1301). Funded via one multichain `03` run (both `0x1`):
+hook `0xcb78de28…` + RSC `0x6436b176…`.
 
-**Spike circuit-breaker — full 3-hop trail:** deposits (`0xb5552794…`, `0x2a8f2a23…`) → 6 `--slow` swaps
-(blocks 54247937–944) drove `varAcc` to 6e6; **threshold crossed** at `0xe07d6c49…` (block 54247942,
-`varAcc=4,000,000`) → RSC `0x3d156B…` reacted (Reactscan, `CALLBACKS=1`) → **`emergencySettle` landed**
-`0x4faab03f…` (block 54247954, ~12 blocks later): `EmergencySettled` + `EpochSettled`, `epochId` 0→1. ✅
+**Spike circuit-breaker — full 3-hop trail (_prior_ deployment, hook `0x721480…d840` / RSC `0x3d156B…`):**
+deposits (`0xb5552794…`, `0x2a8f2a23…`) → 6 `--slow` swaps (blocks 54247937–944) drove `varAcc` to 6e6;
+**threshold crossed** at `0xe07d6c49…` (block 54247942, `varAcc=4,000,000`) → RSC reacted (Reactscan,
+`CALLBACKS=1`) → **`emergencySettle` landed** `0x4faab03f…` (block 54247954, ~12 blocks later):
+`EmergencySettled` + `EpochSettled`, `epochId` 0→1. ✅ (Re-run `05`/`06` to regenerate on the fresh hook.)
 
 Two fixes found via this run: hook `rvm_id` had to be `tx.origin` not the CREATE2 factory (callbacks
 reverted "Authorized RVM ID only"); spike swaps must use `--slow` (one variance observation per block).

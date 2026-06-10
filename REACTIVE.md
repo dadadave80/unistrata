@@ -97,23 +97,34 @@ callback gas limit 100,000); `depositTo(hook)` pre-funds and settles debt. Leave
 native gas or it gets **blocklisted** until the debt clears. Determine the right pre-fund amount
 empirically on testnet (no published minimum beyond the gas floor).
 
-## Live testnet deployment (Phase 4 — verified on-chain, full loop closed)
+## Live testnet deployment (Phase 4 — Permit2 redeploy, Jun 10 2026)
 
-Deployed, subscribed, funded, and **demonstrated end-to-end** (addresses in `.env`, receipts under `broadcast/`):
+**Current stack** (Permit2 deposit path; addresses in `.env`, receipts under `broadcast/`) — deployed,
+pool-initialized, subscribed, and funded. The cross-chain loop was **verified end-to-end on-chain on the
+prior deployment** (identical logic — see the trail below) and is **pending a re-run against this fresh
+hook** (`04`/`05`/`06`); the fresh hook is at `epochId 0` with no deposits/swaps yet. v4 sorts by address,
+so on this stack **token0 = tWETH (18), token1 = tUSDC (6)** (the order flipped from the prior deploy).
 
 | Contract | Chain | Address | Deploy tx |
 |---|---|---|---|
-| tWETH (18) | Unichain Sepolia 1301 | `0x911EcAEde6A8AE982851000C019b063A8688d9DB` | — |
-| tUSDC (6) | Unichain Sepolia 1301 | `0x4C63d215C51B82A401Bb11236349d7Ef12F1B3B4` | — |
-| UnistrataHook | Unichain Sepolia 1301 | `0x721480297Fbe8fb1FD72FDab3887D87e59Dcd840` | `0x1dcdfcf4…` (+ pool init `0x37ff5d3f…`) |
-| UnistrataReactive (RSC) | Lasna 5318007 | `0x3d156B6E1568A24Cd6977c9FE29F53CF5D741d34` | `0xb6f7239e…` |
+| tWETH (18, token0) | Unichain Sepolia 1301 | `0x34b4626268da509c69e4cf03b92164b048fb9f8d` | `0xd24f298e…` |
+| tUSDC (6, token1) | Unichain Sepolia 1301 | `0x5ffa4a8d379cb2471b1d4cdf2f5f2d3eca282dd6` | `0xe08a11f9…` |
+| UnistrataHook | Unichain Sepolia 1301 | `0xfc4f1c6aecad1507dd0ec4af4d72f62378c25840` | `0x4045c5ce…` (+ pool init `0xd160fc88…`) |
+| UnistrataReactive (RSC) | Lasna 5318007 | `0x3cad51414bbd94e19c47ef47fe2d65f89e467eea` | `0x362deddd…` |
+
+Tranche tokens (deployed by the hook constructor): Bedrock `0x3848b7ab…` (**beWETH**), Sediment
+`0x953636fc…` (**seWETH**). rvm_id = the deploying EOA `0xDAdaDA4E…C751` (the `tx.origin` fix).
 
 **Subscription proof:** the RSC deploy tx emitted **two `Subscribe` events** (system contract `0x…ffffff`,
 zero `SubscribeFailed`): CRON on `5318007` + UnistrataObservation on the hook at `1301`.
-**Funding (one multichain `03` run, both legs `0x1`):** hook prefund `0xbe58893e…` (1301, 0.05 ETH) + RSC
-top-up `0x402bd33a…` (5318007, 5 REACT).
+**Funding (one multichain `03` run, both legs `0x1`):** hook prefund `0xcb78de28…` (1301, 0.05 ETH) + RSC
+top-up `0x6436b176…` (5318007, 5 REACT).
 
 ### Spike circuit-breaker — full 3-hop trail (the "wow moment")
+
+> **Trail from the _prior_ deployment** (hook `0x721480…d840`, RSC `0x3d156B…1d34`) — the mechanism is
+> proven on-chain below. Re-run `04`/`05`/`06` against the fresh hook `0xfc4f…5840` to regenerate this
+> trail on the current stack before recording the video.
 
 | Hop | Chain | Tx | What |
 |---|---|---|---|
