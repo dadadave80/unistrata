@@ -126,8 +126,19 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
 - [x] `TrancheToken` — minimal ERC-20 (OZ 5.0.2 base), 18 dec, mint/burn restricted to hook via
       `onlyHook`. TDD: 6 unit tests (constructor/metadata, hook-gated mint+burn, non-hook reverts,
       fuzzed mint). One instance per tranche (sSTR / jSTR).
+- [x] `NavLib` — pure mark-to-market valuation primitives (TDD, **14 tests**). `fullRangeBounds`
+      (tickSpacing-aligned, returns ticks + sqrtPrices); `getPositionTokenAmounts` (delegates to
+      canonical v4-core `LiquidityAmounts`, imported in place); `valueInNumeraire` (cross-token pricing
+      via two-step mulDiv, **numéraire decimals chosen internally** → anti ETH/USDC ordering bug §7);
+      `toWad` (USDC6 ×1e12 exact). Stateful `totalAssets(manager,…)` orchestrator **deferred to hook
+      integration** (reads live PoolManager slot0/position/fee-growth; critic's fee/idle double-count
+      concerns resolve there with a real pool).
 - [ ] StrataHook vault: deposit (both tranches), share mint at NAV, hook-owned full-range liquidity
       via `unlock`, withdrawal queue, NAV views, attachment-point cap, dead-shares guard.
+
+> **Milestone — pure-math foundation complete.** All 3 §4 libraries done & TDD-covered (Waterfall 21,
+> Variance 20, Nav 14) + TrancheToken (6). 69 tests green. Next: the `StrataHook` that composes them
+> (Phase 1 vault + Phase 2 afterSwap + Phase 3 settleEpoch), integration-tested vs a local PoolManager.
 
 ## Phase 2 — Variance oracle · 🟡 in progress
 - [x] `VarianceLib` — pure variance accounting (TDD, **20 tests**). `observe` (per-block once,
