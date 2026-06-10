@@ -4,7 +4,7 @@ out = "out"
 libs = ["lib"]
 evm_version = "cancun"
 solc_version = "0.8.34"
-optimizer_runs = 200 # higher runs bloat bytecode; StrataHook busts the 24KB limit above ~a few thousand
+optimizer_runs = 4444 # StrataHook = 24,100 B (~476 B under the 24KB limit); higher runs bloat past it
 via_ir = false
 ffi = true
 fs_permissions = [
