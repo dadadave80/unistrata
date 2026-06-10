@@ -129,7 +129,16 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
 - [ ] StrataHook vault: deposit (both tranches), share mint at NAV, hook-owned full-range liquidity
       via `unlock`, withdrawal queue, NAV views, attachment-point cap, dead-shares guard.
 
-## Phase 2 — Variance oracle · ⬜ not started (spec ready from lib-design workflow)
+## Phase 2 — Variance oracle · 🟡 in progress
+- [x] `VarianceLib` — pure variance accounting (TDD, **20 tests**). `observe` (per-block once,
+      reorg/stale no-op, **unsigned `dCap`**, cap binds at dCap², widen-before-subtract, signed
+      `blockTickDelta` for the event); `annualizedVariance` (`LN_BASE_SQ_WAD = 9_999_000_092`, **true**
+      annualization ×SECONDS_PER_YEAR, **round-UP** protocol-safe, zero-elapsed revert); `ewma`
+      (two-term overflow-safe, λ∈[0,1e18]). Critique's 3 HIGH fixes folded in before impl.
+- [ ] `afterSwap` wiring in StrataHook: per-block `observe`, `StrataObservation` event, fee-growth snapshots.
+
+**Hook contract (from critique):** `varAcc` is cumulative; `StrataHook` must snapshot it at epoch start
+and pass the per-epoch delta to `annualizedVariance`, and must seed `(block, tick)` in `afterInitialize`.
 ## Phase 3 — Settlement waterfall · 🟡 in progress
 - [x] `WaterfallLib` — pure coupon pricing + settlement math (TDD, **21 tests**). `couponRate`
       (clamp, ceil-rounded reserve λ·σ²/8, `InvalidRateBounds` guard); `seniorTarget` (two-step
