@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+
+env:
+  FOUNDRY_PROFILE: ci
+
+jobs:
+  check:
+    name: foundry ${{ matrix.task }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [fmt, build, test]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: forge fmt --check
+        if: matrix.task == 'fmt'
+        run: forge fmt --check
+
+      - name: forge build --sizes
+        if: matrix.task == 'build'
+        run: forge build --sizes
+
+      - name: forge test
+        if: matrix.task == 'test'
+        run: forge test -vvv
