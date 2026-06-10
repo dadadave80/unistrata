@@ -4,6 +4,7 @@ pragma solidity 0.8.34;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title TrancheToken
+/// @author David Dada (https://github.com/dadadave80)
 /// @notice Minimal ERC-20 share token for a Strata tranche (sSTR / jSTR). Minting and burning
 ///         are restricted to the controlling hook, which is the sole authority over supply: shares
 ///         are minted on deposit at NAV and burned on settled withdrawal.

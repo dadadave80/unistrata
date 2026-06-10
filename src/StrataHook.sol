@@ -22,6 +22,7 @@ import {VarianceLib} from "src/libraries/VarianceLib.sol";
 import {WaterfallLib} from "src/libraries/WaterfallLib.sol";
 
 /// @title StrataHook
+/// @author David Dada (https://github.com/dadadave80)
 /// @notice Uniswap v4 hook that turns one pool into a senior/junior capital structure (Strata).
 ///         The hook owns all pool liquidity; depositors hold tranche shares (sSTR / jSTR) instead of
 ///         v4 positions. It measures realized variance from the pool's own tick path, prices a senior
