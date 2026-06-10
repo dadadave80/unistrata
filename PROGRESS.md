@@ -171,8 +171,10 @@ and pass the per-epoch delta to `annualizedVariance`, and must seed `(block, tic
       on principal loss `A<sPrev`, else `SeniorBelowCoupon`), `EpochSettled`. TDD, **6 integration tests**
       (conservation, coupon honesty, junior-absorbs-IL/senior-protected, reprice, guard revert, not-elapsed). ✅
 - [ ] withdrawal-queue settlement (deferred — deposits + settlement proven; withdrawals next)
-- [~] §6 invariants: **1 (conservation) + 3 (coupon honesty) demonstrated** in settle integration tests;
-      formal Foundry stateful-invariant harness (10k runs, inv. 2 + 4) still to add.
+- [x] **Formal stateful-invariant harness** (`test/invariant/`): handler does random deposit/swap/settle;
+      ~7.7k calls/invariant, ~1.9k settlements, 0 reverts. Asserts **inv. 1 (conservation)** + **inv. 2
+      (seniority)** post-settle, plus stateless **inv. 5 (varAcc ≤ blocks·dCap²)** and rate-clamp.
+      `[invariant]` config added (runs=256/depth=30; CI cranks to ~10k). ✅
 
 **Open design note (Phase 3 gate review):** the brief's literal impairment flag fires for both
 full-junior-wipe-without-loss and true senior principal loss. `WaterfallLib.settle` returns the literal

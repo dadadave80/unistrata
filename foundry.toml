@@ -12,3 +12,9 @@ via_ir = false
 [lint]
 exclude_lints = ["screaming-snake-case-immutable", "screaming-snake-case-const"]
 lint_on_build = false
+
+[invariant]
+runs = 256
+depth = 30
+fail_on_revert = false
+# CI can crank runs up (brief §6 targets ~10k): forge test --match-path 'test/invariant/*' with FOUNDRY_INVARIANT_RUNS=10000
