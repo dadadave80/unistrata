@@ -7,7 +7,7 @@ import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {ModifyLiquidityParams} from "v4-core/src/types/PoolOperation.sol";
+import {ModifyLiquidityParams, SwapParams} from "v4-core/src/types/PoolOperation.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "v4-core/src/types/BalanceDelta.sol";
 import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
 import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
@@ -16,6 +16,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {TrancheToken} from "src/TrancheToken.sol";
 import {NavLib} from "src/libraries/NavLib.sol";
+import {VarianceLib} from "src/libraries/VarianceLib.sol";
 
 /// @title StrataHook
 /// @notice Uniswap v4 hook that turns one pool into a senior/junior capital structure (Strata).
@@ -301,5 +302,24 @@ contract StrataHook is BaseHook {
     {
         if (sender != address(this)) revert StrataHook__OnlyHookLiquidity();
         return BaseHook.beforeAddLiquidity.selector;
+    }
+
+    /// @dev Per-block realized-variance sampling from the pool's own tick (brief §3.3). Emits
+    ///      StrataObservation only on a new-block observation — the Reactive circuit breaker watches it.
+    function _afterSwap(address, PoolKey calldata, SwapParams calldata, BalanceDelta, bytes calldata)
+        internal
+        override
+        returns (bytes4, int128)
+    {
+        (, int24 tick,,) = poolManager.getSlot0(boundId);
+        (uint48 nb, int24 nt, uint256 nv, int24 blockTickDelta, bool counted) =
+            VarianceLib.observe(lastObservedBlock, lastObservedTick, varAcc, uint48(block.number), tick, dCap);
+        if (counted) {
+            lastObservedBlock = nb;
+            lastObservedTick = nt;
+            varAcc = nv;
+            emit StrataObservation(blockTickDelta, nv);
+        }
+        return (BaseHook.afterSwap.selector, 0);
     }
 }

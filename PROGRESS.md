@@ -142,7 +142,9 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
   - [x] attachment-point cap (θ_max), dead-shares guard (1000 to 0xdead), `totalAssets()` view
         (matches tracked NAV ≤5 wei), `seniorCapacityRemaining()`.
   - [ ] withdrawal queue (epoch-settled — lands with `settleEpoch`)
-  - [ ] `afterSwap` variance wiring (`VarianceLib.observe` + `StrataObservation` event + fee-growth snapshot)
+  - [x] **`afterSwap` variance wiring** — per-block `VarianceLib.observe` + `StrataObservation` event.
+        TDD, **5 hook tests** (once-per-block, cap binds at dCap²=1e6, same-block no-op, bounded). ✅
+        Fee-growth snapshot folds in with `settleEpoch`.
 
 > **Milestone — pure-math foundation complete.** All 3 §4 libraries done & TDD-covered (Waterfall 21,
 > Variance 20, Nav 14) + TrancheToken (6). 69 tests green. Next: the `StrataHook` that composes them
