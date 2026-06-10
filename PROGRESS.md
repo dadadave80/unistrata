@@ -46,31 +46,90 @@ persistent one. With `via_ir = false` it does not apply. **Conditional rule:** i
 - [x] §4 directory skeleton created (`src/libraries`, `src/reactive`, `test/{unit,hook,invariant,sim}`, `sim/{paths,out}`).
 - [x] `PROGRESS.md` created.
 - [x] CI added (`.github/workflows/ci.yml`: `forge fmt --check`, `forge build --sizes`, `forge test`).
-- [ ] (b) Version-currency check vs upstream v4 — **delegated to preflight workflow** (brief §2).
-- [ ] (c) Add `reactive-lib` — **blocked on install target verification** (preflight workflow).
+- [x] (b) Version-currency check vs upstream v4 — done via preflight workflow (see §2 / template-currency).
+- [⏸] (c) Add `reactive-lib` — target **verified** (`Reactive-Network/reactive-lib@v0.2.0`), but
+      **install blocked pending user approval** (auto-mode classifier denied the external-repo pull as
+      Untrusted Code Integration). NOT on the critical path for Phases 1-3 — pure-math libs + vault
+      don't import it; only Phase 4 (`StrataReactive.sol`) does.
 - [ ] (d) Remove template example hook (`Counter.sol`/`Counter.t.sol`) — **deferred** to end of Phase 1
       so the suite stays green until `StrataHook` + tests replace them. `test/utils/` (BaseTest,
       Deployers, EasyPosm) and HookMiner usage are **kept** — the reusable parts.
 
-**Phase 0 gate:** `forge test` green with `reactive-lib` installed and §4 skeleton in place → reactive-lib install still pending.
+**Phase 0 gate:** §4 skeleton + CI in place, suite green. Only `reactive-lib` install remains
+(blocked on user approval, off the Phase 1-3 critical path).
 
 ---
 
 ## §2 Verification findings (live-doc check)
 
-> _Preflight workflow `strata-preflight-verification` running (5 parallel researchers → synthesis).
-> Synthesis report will be pasted here on completion: Reactive testnet/chainId/callback-proxy,
-> reactive-lib install target + API, v4 addresses, recommended origin chain, CRON availability,
-> funding model._
+_Verified 2026-06-10 against live Reactive Network + Uniswap docs and reactive-lib v0.2.0 source
+(preflight workflow, 5 parallel researchers → synthesis). Re-confirm addresses on-chain before deploy._
 
-**⚠️ Needs user:** Hookathon submission specifics (deadline, repo visibility, video format) — provide
-the Atrium UHI9 Notion link when convenient.
+### (1) Recommended ORIGIN chain
+**Unichain Sepolia — chainId `1301`** (only candidate that is simultaneously a canonical Uniswap v4
+deployment AND a Reactive origin+destination, and most production-representative). **Ethereum Sepolia
+(`11155111`)** is a valid fallback meeting the same two criteria.
+
+### (2) Uniswap v4 addresses — Unichain Sepolia (1301)
+| Contract | Address |
+|---|---|
+| PoolManager | `0x00B036B58a818B1BC34d502D3fE730Db729e62AC` |
+| PositionManager | `0xf969Aee60879C54bAAed9F3eD26147Db216Fd664` |
+| UniversalRouter | `0xf70536B3bcC1bD1a972dc186A2cf84cC6da6Be5D` |
+| StateView | `0xc199F1072a74D4e905ABa1A84d9a45E2546B6222` |
+
+Fallback — ETH Sepolia (11155111): PoolManager `0xE03A1074c86CFeDd5C142C4F04F1a1536e203543` ·
+PositionManager `0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4` · StateView `0xE1Dd9c3fA50EDB962E442f60DfBc432e24537E4C`.
+
+### (3) Reactive Network testnet + callback proxy
+- **Reactive testnet:** Lasna, chainId `5318007` (RPC `https://lasna-rpc.rnk.dev/`, system contract
+  `0x…fffFfF`). Kopli deprecated 2025-07-28 — do not use.
+- **Callback Proxy on Unichain Sepolia (1301):** `0x9299472A6399Fd1027ebF067571Eb3e3D7837FC4` — pass to
+  `AbstractCallback(_callback_sender)` and authorize for callbacks.
+- Fallback callback proxy (ETH Sepolia): `0xc9f36411C9897e7F959D99ffca2a0Ba7ee0D7bDA`.
+
+### (4) reactive-lib install + imports (v0.2.0)
+```
+forge install Reactive-Network/reactive-lib@v0.2.0      # remap: reactive-lib/=lib/reactive-lib/src/
+```
+Use plain `reactive-lib`, **not** `reactive-lib-omni` (different AbstractCallback ABI). Imports:
+`reactive-lib/abstract-base/{AbstractReactive,AbstractCallback,AbstractPausableReactive}.sol`.
+Constructors: `AbstractReactive()` no-arg; `AbstractCallback(address _callback_sender)` **single-arg**;
+`AbstractPausableReactive()` no-arg (override `getPausableSubscriptions()`). Handler:
+`function react(IReactive.LogRecord calldata log) external`.
+
+### (5) CRON availability
+**CRON available** — no event-counting fallback needed. RSC subscribes via
+`service.subscribe(block.chainid, address(service), CRON_TOPIC, IGNORE, IGNORE, IGNORE)` and detects
+in `react()` via `log.topic_0 == CRON_TOPIC`. Cadences: Cron1 ~7s, Cron10 ~1min, Cron100 ~12min,
+Cron1000 ~2h, Cron10000 ~28h (topic_0 hashes captured in workflow output — re-confirm on Lasna).
+
+### (6) Callback funding model
+Callback Proxy fronts gas and bills the callback contract as **debt**; min callback gas limit
+**100,000**. Pre-fund via **`depositTo(callbackContract)`** (payable, native) on the destination chain's
+Callback Proxy; `coverDebt()`/`pay()` settle debt. Uncovered debt → contract **blocklisted** until
+cleared. Keep pre-funded with native gas on Unichain Sepolia.
+
+### ⚠️ Unverified / needs user
+- **Hackathon deadline / submission (Notion link, judging date) — UNKNOWN.** User must supply.
+- **On-chain address confirmation:** v4 + callback-proxy addresses are doc-sourced; verify bytecode
+  (`cast code <addr> --rpc-url <chain>`) before wiring scripts. A conflicting ETH Sepolia proxy
+  (`0x9b9BB25f…Cf434`) surfaced in a snippet — official table value used here; confirm before auth.
+- **Lasna RPC / system-contract** address has doc ambiguity (`fffFfF` in-contract vs `0x8888…8888`
+  network-level; `lasna-rpc` vs `lasna-omni-rpc`) — confirm live at deploy time.
+- **Local script drift:** `script/01_*`/`02_*` are modified vs v4-template baseline — confirm intentional.
 
 ---
 
-## Phase 1 — Vault core · ⬜ not started
-## Phase 2 — Variance oracle · ⬜ not started
-## Phase 3 — Settlement waterfall · ⬜ not started
+## Phase 1 — Vault core · 🟡 in progress
+- [x] `TrancheToken` — minimal ERC-20 (OZ 5.0.2 base), 18 dec, mint/burn restricted to hook via
+      `onlyHook`. TDD: 6 unit tests (constructor/metadata, hook-gated mint+burn, non-hook reverts,
+      fuzzed mint). One instance per tranche (sSTR / jSTR).
+- [ ] StrataHook vault: deposit (both tranches), share mint at NAV, hook-owned full-range liquidity
+      via `unlock`, withdrawal queue, NAV views, attachment-point cap, dead-shares guard.
+
+## Phase 2 — Variance oracle · ⬜ not started (design workflow running)
+## Phase 3 — Settlement waterfall · ⬜ not started (design workflow running)
 
 (Phases 4–7 out of current session scope.)
 
