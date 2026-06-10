@@ -57,7 +57,9 @@ contract StrataHandler is Test {
     }
 
     function settle(uint256 warpBy) public {
-        warpBy = bound(warpBy, uint256(hook.epochDuration()) + 1, uint256(hook.epochDuration()) * 3);
+        // permissionless settleEpoch() requires epoch + grace to have elapsed
+        uint256 floor = uint256(hook.epochDuration()) + uint256(hook.gracePeriod()) + 1;
+        warpBy = bound(warpBy, floor, floor * 3);
         vm.warp(block.timestamp + warpBy);
         try hook.settleEpoch() {
             settleCount++;

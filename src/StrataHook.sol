@@ -3,6 +3,7 @@ pragma solidity ^0.8.30;
 
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
 import {CurrencySettler} from "@openzeppelin/uniswap-hooks/src/utils/CurrencySettler.sol";
+import {AbstractCallback} from "reactive-lib/abstract-base/AbstractCallback.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
@@ -25,7 +26,10 @@ import {WaterfallLib} from "src/libraries/WaterfallLib.sol";
 ///         v4 positions. It measures realized variance from the pool's own tick path, prices a senior
 ///         coupon off that variance, and settles a senior/junior waterfall each epoch.
 /// @dev Single-pool vault: the hook binds to the first pool that initializes it and rejects others.
-contract StrataHook is BaseHook {
+///      It is also a Reactive callback receiver — `settleEpoch(address)` and `emergencySettle(address)`
+///      are callable only by the Reactive callback proxy (rvm-id checked), with a permissionless
+///      `settleEpoch()` fallback after the grace period so the demo never bricks on a missed callback.
+contract StrataHook is BaseHook, AbstractCallback {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
@@ -93,6 +97,8 @@ contract StrataHook is BaseHook {
         address indexed user, uint256 indexed id, bool isSenior, uint256 shares, uint256 eligibleEpoch
     );
     event WithdrawClaimed(address indexed user, uint256 indexed id, uint256 value);
+    /// @notice Emitted when the Reactive volatility circuit breaker forces an early settlement.
+    event EmergencySettled(uint256 indexed epochId);
 
     uint256 internal constant WAD = 1e18;
     uint256 internal constant SECONDS_PER_YEAR = 365 days;
@@ -145,7 +151,10 @@ contract StrataHook is BaseHook {
     // --- withdrawal queue (brief §3.6) ---
     mapping(address => WithdrawRequest[]) public withdrawRequests;
 
-    constructor(IPoolManager _poolManager, Config memory cfg) BaseHook(_poolManager) {
+    constructor(IPoolManager _poolManager, Config memory cfg, address callbackSender)
+        BaseHook(_poolManager)
+        AbstractCallback(callbackSender)
+    {
         senior = new TrancheToken("Strata Senior", "sSTR", address(this));
         junior = new TrancheToken("Strata Junior", "jSTR", address(this));
 
@@ -234,12 +243,30 @@ contract StrataHook is BaseHook {
     //                                SETTLEMENT
     //////////////////////////////////////////////////////////////////////////*//
 
-    /// @notice Settle the current epoch: mark to market, run the senior/junior waterfall, roll the
-    ///         epoch and re-price the senior coupon. Permissionless once the epoch has elapsed (the
-    ///         Reactive callback path that can fire earlier lands in Phase 4).
+    /// @notice Permissionless settlement fallback — anyone may settle once the epoch has elapsed AND
+    ///         the grace period has passed, so the demo never bricks if a Reactive callback is missed.
     function settleEpoch() external {
-        if (!poolInitialized) revert StrataHook__NotInitialized();
+        if (block.timestamp < epochStart + epochDuration + gracePeriod) revert StrataHook__EpochNotElapsed();
+        _settle();
+    }
+
+    /// @notice Reactive heartbeat callback: the Reactive callback proxy settles the epoch on schedule
+    ///         (once the epoch has elapsed). Callable only by the authorized proxy for our rvm id.
+    function settleEpoch(address rvm_id) external authorizedSenderOnly rvmIdOnly(rvm_id) {
         if (block.timestamp < epochStart + epochDuration) revert StrataHook__EpochNotElapsed();
+        _settle();
+    }
+
+    /// @notice Reactive volatility circuit breaker: settle the epoch EARLY (pro-rata) on a vol spike,
+    ///         locking in the senior coupon before further drawdown. Callback-only; no time gate.
+    function emergencySettle(address rvm_id) external authorizedSenderOnly rvmIdOnly(rvm_id) {
+        emit EmergencySettled(epochId);
+        _settle();
+    }
+
+    /// @dev Mark to market, run the senior/junior waterfall, roll the epoch and re-price the coupon.
+    function _settle() internal {
+        if (!poolInitialized) revert StrataHook__NotInitialized();
 
         // §3.5 price guard: reject settlement if the current price is far from our own sampled tick.
         (, int24 tick,,) = poolManager.getSlot0(boundId);

@@ -51,8 +51,8 @@ contract StrataSettleTest is BaseTest {
     function setUp() public {
         deployArtifactsAndLabel();
         (currency0, currency1) = deployCurrencyPair();
-        deployCodeTo("StrataHook.sol:StrataHook", abi.encode(poolManager, _cfg()), HOOK_FLAGS);
-        hook = StrataHook(HOOK_FLAGS);
+        deployCodeTo("StrataHook.sol:StrataHook", abi.encode(poolManager, _cfg(), address(0xCA11)), HOOK_FLAGS);
+        hook = StrataHook(payable(HOOK_FLAGS));
         poolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(hook));
         poolId = poolKey.toId();
         poolManager.initialize(poolKey, Constants.SQRT_PRICE_1_1);
@@ -72,7 +72,7 @@ contract StrataSettleTest is BaseTest {
     }
 
     function _elapseEpoch() internal {
-        vm.warp(block.timestamp + 1 days + 1);
+        vm.warp(block.timestamp + 1 days + 1 hours + 1); // past epoch + grace for the permissionless path
     }
 
     function test_settleEpoch_RevertWhen_notElapsed() public {

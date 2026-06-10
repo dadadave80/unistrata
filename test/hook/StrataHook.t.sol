@@ -51,9 +51,9 @@ contract StrataHookFoundationTest is BaseTest {
         deployArtifactsAndLabel();
         (currency0, currency1) = deployCurrencyPair();
 
-        bytes memory args = abi.encode(poolManager, _defaultConfig());
+        bytes memory args = abi.encode(poolManager, _defaultConfig(), address(0xCA11));
         deployCodeTo("StrataHook.sol:StrataHook", args, HOOK_FLAGS);
-        hook = StrataHook(HOOK_FLAGS);
+        hook = StrataHook(payable(HOOK_FLAGS));
 
         poolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(hook));
         poolId = poolKey.toId();
