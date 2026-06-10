@@ -2,9 +2,9 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-evm_version = "cancun"
+evm_version = "cancun" # transient-storage reentrancy guard (TSTORE/TLOAD) needs cancun; Unichain Sepolia supports it
 solc_version = "0.8.34"
-optimizer_runs = 4444 # UnistrataHook = 24,100 B (~476 B under the 24KB limit); higher runs bloat past it
+optimizer_runs = 200 # UnistrataHook (with the Permit2 deposit path) must fit the 24KB limit; higher runs bloat it past
 via_ir = false
 ffi = true
 fs_permissions = [

@@ -4,6 +4,7 @@ pragma solidity 0.8.34;
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
 import {CurrencySettler} from "@openzeppelin/uniswap-hooks/src/utils/CurrencySettler.sol";
+import {ISignatureTransfer} from "permit2/src/interfaces/ISignatureTransfer.sol";
 import {AbstractCallback} from "reactive-lib/abstract-base/AbstractCallback.sol";
 import {ReentrancyGuardTransient} from "src/utils/ReentrancyGuardTransient.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
@@ -80,6 +81,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     error UnistrataHook__SettlementPriceOutOfBand();
     error UnistrataHook__WithdrawNotEligible();
     error UnistrataHook__WithdrawAlreadyClaimed();
+    error UnistrataHook__BadPermit();
 
     /// @notice Emitted once per new-block observation; the Reactive circuit breaker subscribes to this.
     event UnistrataObservation(int24 blockTickDelta, uint256 varAcc);
@@ -111,6 +113,8 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     uint256 internal constant DEAD_SHARES = 1000;
     address internal constant DEAD_ADDRESS = address(0xdead);
     bytes32 internal constant POSITION_SALT = bytes32(0);
+    /// @dev Canonical Permit2 (same address on every chain, incl. Unichain Sepolia).
+    ISignatureTransfer internal constant PERMIT2 = ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
     // --- tranche share tokens (one each, deployed at construction) ---
     StratumToken public immutable bedrock; // beWETH
@@ -201,13 +205,66 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         returns (uint256 shares)
     {
         if (!poolInitialized) revert UnistrataHook__NotInitialized();
+        // payer == caller: the hook pulls owed tokens from the caller's ERC-20 allowance during settle.
+        (uint256 depositValue, uint256 used0, uint256 used1) = _runDeposit(msg.sender, isBedrock, amount0Max, amount1Max);
+        shares = _finalizeDeposit(isBedrock, depositValue, used0, used1, msg.sender);
+    }
 
+    /// @notice Deposit via a Permit2 signature — no standing ERC-20 allowance to the hook. The caller
+    ///         signs a batch transfer (token0 + token1, exact amounts, deadline-bounded); the hook pulls
+    ///         the maxes to itself via Permit2, adds liquidity, mints shares, and refunds the unused
+    ///         remainder. Removes the unbounded-approval footgun.
+    /// @param isBedrock True for bedrock (beWETH), false for sediment (seWETH).
+    /// @param permit    Permit2 batch permit — permitted[0] = token0/amount0Max, permitted[1] = token1/amount1Max.
+    /// @param signature The caller's EIP-712 signature over `permit` (spender = this hook).
+    function depositWithPermit(
+        bool isBedrock,
+        ISignatureTransfer.PermitBatchTransferFrom calldata permit,
+        bytes calldata signature
+    ) external nonReentrant returns (uint256 shares) {
+        if (!poolInitialized) revert UnistrataHook__NotInitialized();
+        if (
+            permit.permitted.length != 2 || permit.permitted[0].token != Currency.unwrap(boundKey.currency0)
+                || permit.permitted[1].token != Currency.unwrap(boundKey.currency1)
+        ) revert UnistrataHook__BadPermit();
+
+        uint256 amount0Max = permit.permitted[0].amount;
+        uint256 amount1Max = permit.permitted[1].amount;
+
+        // Pull the maxes from the caller to this hook via Permit2 (signed, exact, deadline-bounded).
+        ISignatureTransfer.SignatureTransferDetails[] memory details =
+            new ISignatureTransfer.SignatureTransferDetails[](2);
+        details[0] = ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: amount0Max});
+        details[1] = ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: amount1Max});
+        PERMIT2.permitTransferFrom(permit, details, msg.sender, signature);
+
+        // Add liquidity, settling the owed amounts from THIS hook's just-pulled balance (payer == hook).
+        (uint256 depositValue, uint256 used0, uint256 used1) =
+            _runDeposit(address(this), isBedrock, amount0Max, amount1Max);
+        shares = _finalizeDeposit(isBedrock, depositValue, used0, used1, msg.sender);
+
+        // Refund the unused remainder to the caller.
+        if (amount0Max > used0) boundKey.currency0.transfer(msg.sender, amount0Max - used0);
+        if (amount1Max > used1) boundKey.currency1.transfer(msg.sender, amount1Max - used1);
+    }
+
+    /// @dev Run the deposit unlock; `payer` settles the owed tokens. Returns (numéraire value, used0, used1).
+    function _runDeposit(address payer, bool isBedrock, uint256 amount0Max, uint256 amount1Max)
+        internal
+        returns (uint256 depositValue, uint256 used0, uint256 used1)
+    {
         bytes memory res =
-            poolManager.unlock(abi.encode(Action.Deposit, abi.encode(msg.sender, isBedrock, amount0Max, amount1Max)));
-        (uint256 depositValue, uint256 used0, uint256 used1) = abi.decode(res, (uint256, uint256, uint256));
+            poolManager.unlock(abi.encode(Action.Deposit, abi.encode(payer, isBedrock, amount0Max, amount1Max)));
+        (depositValue, used0, used1) = abi.decode(res, (uint256, uint256, uint256));
+    }
 
+    /// @dev Mint tranche shares to `recipient`, advance the tranche NAV, and emit. Shared by both deposit paths.
+    function _finalizeDeposit(bool isBedrock, uint256 depositValue, uint256 used0, uint256 used1, address recipient)
+        internal
+        returns (uint256 shares)
+    {
         uint256 nav = isBedrock ? bedrockNav : sedimentNav;
-        shares = _mintShares(isBedrock, nav, depositValue, msg.sender);
+        shares = _mintShares(isBedrock, nav, depositValue, recipient);
 
         if (isBedrock) {
             bedrockNav = nav + depositValue;
@@ -216,7 +273,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
             sedimentNav = nav + depositValue;
         }
 
-        emit Deposit(msg.sender, isBedrock, used0, used1, depositValue, shares);
+        emit Deposit(recipient, isBedrock, used0, used1, depositValue, shares);
     }
 
     //*//////////////////////////////////////////////////////////////////////////
