@@ -47,16 +47,17 @@ persistent one. With `via_ir = false` it does not apply. **Conditional rule:** i
 - [x] `PROGRESS.md` created.
 - [x] CI added (`.github/workflows/ci.yml`: `forge fmt --check`, `forge build --sizes`, `forge test`).
 - [x] (b) Version-currency check vs upstream v4 — done via preflight workflow (see §2 / template-currency).
-- [⏸] (c) Add `reactive-lib` — target **verified** (`Reactive-Network/reactive-lib@v0.2.0`), but
-      **install blocked pending user approval** (auto-mode classifier denied the external-repo pull as
-      Untrusted Code Integration). NOT on the critical path for Phases 1-3 — pure-math libs + vault
-      don't import it; only Phase 4 (`StrataReactive.sol`) does.
+- [x] (c) Add `reactive-lib` — **installed** `Reactive-Network/reactive-lib@v0.2.0` (submodule; user
+      ran the install after the classifier blocked the agent's `forge install`). Remap
+      `reactive-lib/=lib/reactive-lib/src/`. Pragma `>=0.8.0` (compatible w/ 0.8.30). Confirmed layout:
+      `abstract-base/{AbstractReactive,AbstractCallback,AbstractPayer,AbstractPausableReactive}.sol`,
+      `interfaces/IReactive.sol` (`react(LogRecord)`, `topic_0`).
 - [ ] (d) Remove template example hook (`Counter.sol`/`Counter.t.sol`) — **deferred** to end of Phase 1
       so the suite stays green until `StrataHook` + tests replace them. `test/utils/` (BaseTest,
       Deployers, EasyPosm) and HookMiner usage are **kept** — the reusable parts.
 
-**Phase 0 gate:** §4 skeleton + CI in place, suite green. Only `reactive-lib` install remains
-(blocked on user approval, off the Phase 1-3 critical path).
+**Phase 0 gate:** ✅ **PASS** — §4 skeleton + CI in place, `reactive-lib` installed + remapped,
+suite green (14 tests: Counter ×2, EasyPosm ×6, TrancheToken ×6).
 
 ---
 
