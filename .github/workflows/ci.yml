@@ -37,3 +37,17 @@ jobs:
       - name: forge test
         if: matrix.task == 'test'
         run: forge test -vvv
+
+  slither:
+    name: slither
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Run Slither
+        uses: crytic/slither-action@v0.4.0
+        with:
+          fail-on: none # report-only for now (deps/v4 produce noise); tighten to "high" once triaged
+          slither-args: --filter-paths "lib/|test/|script/" --exclude-dependencies

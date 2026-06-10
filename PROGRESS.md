@@ -22,7 +22,7 @@ deviations from the plan (with reasons). Newest status at the top of each phase.
 | Component | Version / ref | Notes |
 |---|---|---|
 | Foundry (`forge`) | 1.7.1 | EVM `cancun`, `via_ir = false` |
-| solc | 0.8.30 | See **solc decision** below |
+| solc | 0.8.34 (pinned) | bumped from 0.8.30; deployed contracts use strict `pragma 0.8.34` |
 | `forge-std` | v1.10.0 | submodule |
 | `uniswap-hooks` (OZ) | v1.1.0 | provides `BaseHook`; nests `v4-core` + `v4-periphery` under `lib/uniswap-hooks/lib/` |
 | `hookmate` | 33408fb | v4 address constants / utilities |
@@ -31,12 +31,16 @@ deviations from the plan (with reasons). Newest status at the top of each phase.
 **Remappings of note:** `v4-core/`, `v4-periphery/`, `@uniswap/v4-core/`, `@uniswap/v4-periphery/`
 all resolve under `lib/uniswap-hooks/lib/`. `HookMiner` lives in v4-periphery (`src/utils/HookMiner.sol`).
 
-**solc decision:** Scaffold pins **0.8.30** with `via_ir = false`. The installed `solidity` skill
-recommends **0.8.34+** to dodge the SOL-2026-1 IR-codegen bug (SOL-2026-1) — but that bug **only**
-affects `via_ir = true` on Cancun+ when a contract `delete`s a *transient* storage var alongside a
-persistent one. With `via_ir = false` it does not apply. **Conditional rule:** if we later enable
-`via_ir` (likely needed once `StrataHook` grows past the size limit) *and* use transient storage
-(e.g. `ReentrancyGuardTransient`), bump solc to **0.8.34+** at that time.
+**solc decision (resolved):** pinned to **0.8.34** + `optimizer_runs = 999_999`. Deployed contracts
+(`StrataHook`, `TrancheToken`, `StrataReactive`, `ReentrancyGuardTransient`) use a **strict** pragma
+`0.8.34`; libraries/tests/scripts stay floating `^0.8.30` (skill-correct). 0.8.34 is the SOL-2026-1
+floor, which matters now that the hook uses transient storage (the reentrancy guard).
+
+**Security hardening (solidity-skill gaps closed):** `@custom:security-contact` on all deployable
+contracts; **transient `ReentrancyGuardTransient`** (`nonReentrant`, before other modifiers) on every
+external mutator — `deposit`, `requestWithdraw`, `claim`, both `settleEpoch`, `emergencySettle`
+(defense-in-depth atop v4's non-re-entrant `unlock`); **slither** job added to CI (report-only for now).
+Still open (deferred per user): nothing material — BTT `.tree` artifacts and per-finding slither gating.
 
 ---
 

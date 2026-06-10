@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity 0.8.34;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
 import {CurrencySettler} from "@openzeppelin/uniswap-hooks/src/utils/CurrencySettler.sol";
 import {AbstractCallback} from "reactive-lib/abstract-base/AbstractCallback.sol";
+import {ReentrancyGuardTransient} from "src/utils/ReentrancyGuardTransient.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
@@ -31,7 +32,7 @@ import {WaterfallLib} from "src/libraries/WaterfallLib.sol";
 ///      `settleEpoch()` fallback after the grace period so the demo never bricks on a missed callback.
 /// @custom:security-contact daveproxy80@gmail.com
 /// @custom:security-contact Discord: daveproxy80
-contract StrataHook is BaseHook, AbstractCallback {
+contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
@@ -184,7 +185,11 @@ contract StrataHook is BaseHook, AbstractCallback {
     /// @param amount0Max Max token0 to pull from the caller.
     /// @param amount1Max Max token1 to pull from the caller.
     /// @return shares    Tranche shares minted to the caller.
-    function deposit(bool isSenior, uint256 amount0Max, uint256 amount1Max) external returns (uint256 shares) {
+    function deposit(bool isSenior, uint256 amount0Max, uint256 amount1Max)
+        external
+        nonReentrant
+        returns (uint256 shares)
+    {
         if (!poolInitialized) revert StrataHook__NotInitialized();
 
         bytes memory res =
@@ -213,7 +218,7 @@ contract StrataHook is BaseHook, AbstractCallback {
     ///         so a junior cannot exit just before a volatility event it is paid to absorb). Caller
     ///         must approve this hook for the tranche token.
     /// @return id The request id, used in {claim}.
-    function requestWithdraw(bool isSenior, uint256 shares) external returns (uint256 id) {
+    function requestWithdraw(bool isSenior, uint256 shares) external nonReentrant returns (uint256 id) {
         TrancheToken token = isSenior ? senior : junior;
         token.transferFrom(msg.sender, address(this), shares); // escrow
 
@@ -229,7 +234,7 @@ contract StrataHook is BaseHook, AbstractCallback {
 
     /// @notice Claim a previously-queued withdrawal once its lockup has elapsed. Pays out the
     ///         withdrawer's share-proportional slice of the hook's assets and burns the escrowed shares.
-    function claim(uint256 id) external returns (uint256 value) {
+    function claim(uint256 id) external nonReentrant returns (uint256 value) {
         WithdrawRequest storage req = withdrawRequests[msg.sender][id];
         if (req.claimed) revert StrataHook__WithdrawAlreadyClaimed();
         if (epochId < req.eligibleEpoch) revert StrataHook__WithdrawNotEligible();
@@ -247,21 +252,21 @@ contract StrataHook is BaseHook, AbstractCallback {
 
     /// @notice Permissionless settlement fallback — anyone may settle once the epoch has elapsed AND
     ///         the grace period has passed, so the demo never bricks if a Reactive callback is missed.
-    function settleEpoch() external {
+    function settleEpoch() external nonReentrant {
         if (block.timestamp < epochStart + epochDuration + gracePeriod) revert StrataHook__EpochNotElapsed();
         _settle();
     }
 
     /// @notice Reactive heartbeat callback: the Reactive callback proxy settles the epoch on schedule
     ///         (once the epoch has elapsed). Callable only by the authorized proxy for our rvm id.
-    function settleEpoch(address rvm_id) external authorizedSenderOnly rvmIdOnly(rvm_id) {
+    function settleEpoch(address rvm_id) external nonReentrant authorizedSenderOnly rvmIdOnly(rvm_id) {
         if (block.timestamp < epochStart + epochDuration) revert StrataHook__EpochNotElapsed();
         _settle();
     }
 
     /// @notice Reactive volatility circuit breaker: settle the epoch EARLY (pro-rata) on a vol spike,
     ///         locking in the senior coupon before further drawdown. Callback-only; no time gate.
-    function emergencySettle(address rvm_id) external authorizedSenderOnly rvmIdOnly(rvm_id) {
+    function emergencySettle(address rvm_id) external nonReentrant authorizedSenderOnly rvmIdOnly(rvm_id) {
         emit EmergencySettled(epochId);
         _settle();
     }
