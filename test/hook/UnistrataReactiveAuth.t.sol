@@ -27,7 +27,7 @@ contract UnistrataReactiveAuthTest is BaseTest {
 
     address internal alice = makeAddr("alice");
     address internal constant CALLBACK_PROXY = address(0xCA11);
-    address internal rvmId; // the hook's stored rvm id == its deployer == this test contract
+    address internal rvmId; // the hook's stored rvm id == tx.origin at deploy (the deploying EOA)
 
     address internal constant HOOK_FLAGS = address(
         uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x5556 << 144)
@@ -55,7 +55,7 @@ contract UnistrataReactiveAuthTest is BaseTest {
         (currency0, currency1) = deployCurrencyPair();
         deployCodeTo("UnistrataHook.sol:UnistrataHook", abi.encode(poolManager, _cfg(), CALLBACK_PROXY), HOOK_FLAGS);
         hook = UnistrataHook(payable(HOOK_FLAGS));
-        rvmId = address(this); // deployCodeTo runs the ctor with msg.sender == this test
+        rvmId = tx.origin; // the ctor sets rvm_id = tx.origin (the deploying EOA / default sender in tests)
 
         poolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(hook));
         poolId = poolKey.toId();

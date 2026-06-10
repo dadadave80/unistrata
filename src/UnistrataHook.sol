@@ -161,6 +161,13 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         BaseHook(_poolManager)
         AbstractCallback(callbackSender)
     {
+        // The hook is deployed via CREATE2 (HookMiner address mining), so AbstractCallback set
+        // rvm_id = msg.sender = the CREATE2 factory. Override it to the deploying EOA so it matches the
+        // RSC's rvm id (the same EOA deploys the RSC) — otherwise every callback reverts "Authorized RVM
+        // ID only". tx.origin is the deployer here (a one-time deploy capture, not a runtime auth check).
+        // slither-disable-next-line tx-origin
+        rvm_id = tx.origin;
+
         bedrock = new TrancheToken("Unistrata Bedrock", "BEDR", address(this));
         sediment = new TrancheToken("Unistrata Sediment", "SEDI", address(this));
 
