@@ -122,7 +122,7 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
 
 ---
 
-## Phase 1 — Vault core · 🟡 in progress
+## Phase 1 — Vault core · ✅ complete
 - [x] `TrancheToken` — minimal ERC-20 (OZ 5.0.2 base), 18 dec, mint/burn restricted to hook via
       `onlyHook`. TDD: 6 unit tests (constructor/metadata, hook-gated mint+burn, non-hook reverts,
       fuzzed mint). One instance per tranche (sSTR / jSTR).
@@ -141,7 +141,9 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
         depositor (`CurrencySettler`) → mint at NAV. TDD, **7 hook tests** vs local PoolManager.
   - [x] attachment-point cap (θ_max), dead-shares guard (1000 to 0xdead), `totalAssets()` view
         (matches tracked NAV ≤5 wei), `seniorCapacityRemaining()`.
-  - [ ] withdrawal queue (epoch-settled — lands with `settleEpoch`)
+  - [x] **withdrawal queue** — `requestWithdraw` escrows shares; epoch lockup (senior +1, junior +2);
+        `claim` removes the withdrawer's share-proportional slice of position + idle, burns shares,
+        reduces NAV (NAV/share preserved). TDD, **6 tests**. ✅
   - [x] **`afterSwap` variance wiring** — per-block `VarianceLib.observe` + `StrataObservation` event.
         TDD, **5 hook tests** (once-per-block, cap binds at dCap²=1e6, same-block no-op, bounded). ✅
         Fee-growth snapshot folds in with `settleEpoch`.
@@ -150,7 +152,7 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
 > Variance 20, Nav 14) + TrancheToken (6). 69 tests green. Next: the `StrataHook` that composes them
 > (Phase 1 vault + Phase 2 afterSwap + Phase 3 settleEpoch), integration-tested vs a local PoolManager.
 
-## Phase 2 — Variance oracle · 🟡 in progress
+## Phase 2 — Variance oracle · ✅ complete
 - [x] `VarianceLib` — pure variance accounting (TDD, **20 tests**). `observe` (per-block once,
       reorg/stale no-op, **unsigned `dCap`**, cap binds at dCap², widen-before-subtract, signed
       `blockTickDelta` for the event); `annualizedVariance` (`LN_BASE_SQ_WAD = 9_999_000_092`, **true**
@@ -160,7 +162,7 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
 
 **Hook contract (from critique):** `varAcc` is cumulative; `StrataHook` must snapshot it at epoch start
 and pass the per-epoch delta to `annualizedVariance`, and must seed `(block, tick)` in `afterInitialize`.
-## Phase 3 — Settlement waterfall · 🟡 in progress
+## Phase 3 — Settlement waterfall · ✅ complete
 - [x] `WaterfallLib` — pure coupon pricing + settlement math (TDD, **21 tests**). `couponRate`
       (clamp, ceil-rounded reserve λ·σ²/8, `InvalidRateBounds` guard); `seniorTarget` (two-step
       FullMath accrual, signed net deposits, floor-at-0, coupon-honesty floor); `settle` (min-split,
@@ -170,7 +172,7 @@ and pass the per-epoch delta to `annualizedVariance`, and must seed `(block, tic
       fee collection via poke, epoch roll + coupon reprice, **two impairment events** (`SeniorImpaired`
       on principal loss `A<sPrev`, else `SeniorBelowCoupon`), `EpochSettled`. TDD, **6 integration tests**
       (conservation, coupon honesty, junior-absorbs-IL/senior-protected, reprice, guard revert, not-elapsed). ✅
-- [ ] withdrawal-queue settlement (deferred — deposits + settlement proven; withdrawals next)
+- [x] withdrawal-queue settlement — done (epoch-locked request/claim, see Phase 1 above).
 - [x] **Formal stateful-invariant harness** (`test/invariant/`): handler does random deposit/swap/settle;
       ~7.7k calls/invariant, ~1.9k settlements, 0 reverts. Asserts **inv. 1 (conservation)** + **inv. 2
       (seniority)** post-settle, plus stateless **inv. 5 (varAcc ≤ blocks·dCap²)** and rate-clamp.

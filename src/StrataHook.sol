@@ -50,7 +50,16 @@ contract StrataHook is BaseHook {
 
     enum Action {
         Deposit,
-        Settle
+        Settle,
+        Withdraw
+    }
+
+    /// @notice A queued, epoch-locked withdrawal of tranche shares.
+    struct WithdrawRequest {
+        uint128 shares;
+        uint64 eligibleEpoch;
+        bool isSenior;
+        bool claimed;
     }
 
     error StrataHook__OnlyHookLiquidity();
@@ -61,6 +70,8 @@ contract StrataHook is BaseHook {
     error StrataHook__AttachmentCapExceeded();
     error StrataHook__EpochNotElapsed();
     error StrataHook__SettlementPriceOutOfBand();
+    error StrataHook__WithdrawNotEligible();
+    error StrataHook__WithdrawAlreadyClaimed();
 
     /// @notice Emitted once per new-block observation; the Reactive circuit breaker subscribes to this.
     event StrataObservation(int24 blockTickDelta, uint256 varAcc);
@@ -78,6 +89,10 @@ contract StrataHook is BaseHook {
     event SeniorImpaired(uint256 indexed epochId, uint256 seniorPrev, uint256 seniorNew);
     /// @notice Junior exhausted and senior grew but fell short of its coupon (no principal loss).
     event SeniorBelowCoupon(uint256 indexed epochId, uint256 seniorTarget, uint256 seniorNew);
+    event WithdrawRequested(
+        address indexed user, uint256 indexed id, bool isSenior, uint256 shares, uint256 eligibleEpoch
+    );
+    event WithdrawClaimed(address indexed user, uint256 indexed id, uint256 value);
 
     uint256 internal constant WAD = 1e18;
     uint256 internal constant SECONDS_PER_YEAR = 365 days;
@@ -127,6 +142,9 @@ contract StrataHook is BaseHook {
     uint256 public varAcc;
     uint256 public varAccAtEpochStart;
 
+    // --- withdrawal queue (brief §3.6) ---
+    mapping(address => WithdrawRequest[]) public withdrawRequests;
+
     constructor(IPoolManager _poolManager, Config memory cfg) BaseHook(_poolManager) {
         senior = new TrancheToken("Strata Senior", "sSTR", address(this));
         junior = new TrancheToken("Strata Junior", "jSTR", address(this));
@@ -173,6 +191,43 @@ contract StrataHook is BaseHook {
         }
 
         emit Deposit(msg.sender, isSenior, used0, used1, depositValue, shares);
+    }
+
+    //*//////////////////////////////////////////////////////////////////////////
+    //                                WITHDRAWALS
+    //////////////////////////////////////////////////////////////////////////*//
+
+    /// @notice Queue a withdrawal of tranche shares. Shares are escrowed and become claimable after an
+    ///         epoch lockup — senior at the next settlement (+1 epoch), junior one epoch later (+2,
+    ///         so a junior cannot exit just before a volatility event it is paid to absorb). Caller
+    ///         must approve this hook for the tranche token.
+    /// @return id The request id, used in {claim}.
+    function requestWithdraw(bool isSenior, uint256 shares) external returns (uint256 id) {
+        TrancheToken token = isSenior ? senior : junior;
+        token.transferFrom(msg.sender, address(this), shares); // escrow
+
+        uint256 eligible = epochId + (isSenior ? 1 : 2);
+        id = withdrawRequests[msg.sender].length;
+        withdrawRequests[msg.sender].push(
+            WithdrawRequest({
+                shares: uint128(shares), eligibleEpoch: uint64(eligible), isSenior: isSenior, claimed: false
+            })
+        );
+        emit WithdrawRequested(msg.sender, id, isSenior, shares, eligible);
+    }
+
+    /// @notice Claim a previously-queued withdrawal once its lockup has elapsed. Pays out the
+    ///         withdrawer's share-proportional slice of the hook's assets and burns the escrowed shares.
+    function claim(uint256 id) external returns (uint256 value) {
+        WithdrawRequest storage req = withdrawRequests[msg.sender][id];
+        if (req.claimed) revert StrataHook__WithdrawAlreadyClaimed();
+        if (epochId < req.eligibleEpoch) revert StrataHook__WithdrawNotEligible();
+        req.claimed = true;
+
+        bytes memory res =
+            poolManager.unlock(abi.encode(Action.Withdraw, abi.encode(msg.sender, req.isSenior, uint256(req.shares))));
+        value = abi.decode(res, (uint256));
+        emit WithdrawClaimed(msg.sender, id, value);
     }
 
     //*//////////////////////////////////////////////////////////////////////////
@@ -250,6 +305,9 @@ contract StrataHook is BaseHook {
         if (action == Action.Deposit) {
             return _unlockDeposit(payload);
         }
+        if (action == Action.Withdraw) {
+            return _unlockWithdraw(payload);
+        }
         return _unlockSettle();
     }
 
@@ -281,6 +339,61 @@ contract StrataHook is BaseHook {
         uint256 depositValue =
             NavLib.valueInNumeraire(used0, used1, sqrtPriceX96, numeraireIsToken1, decimals0, decimals1);
         return abi.encode(depositValue, used0, used1);
+    }
+
+    /// @dev Remove the withdrawer's share-proportional slice of ALL hook assets (position + idle) and
+    ///      pay it out, then burn the escrowed shares and reduce the tranche NAV. Because both NAV and
+    ///      the removed value are `nav·shares/supply`, the remaining holders' NAV/share is unchanged.
+    function _unlockWithdraw(bytes memory payload) internal returns (bytes memory) {
+        (address user, bool isSenior, uint256 shares) = abi.decode(payload, (address, bool, uint256));
+        TrancheToken token = isSenior ? senior : junior;
+        uint256 supply = token.totalSupply();
+        uint256 nav = isSenior ? seniorNav : juniorNav;
+        uint256 value = Math.mulDiv(nav, shares, supply);
+
+        uint256 totalA = totalAssets();
+        if (totalA != 0) {
+            (uint128 liquidity,,) =
+                poolManager.getPositionInfo(boundId, address(this), tickLower, tickUpper, POSITION_SALT);
+            uint128 lRemove = uint128(Math.mulDiv(liquidity, value, totalA));
+            if (lRemove != 0) {
+                (BalanceDelta delta,) = poolManager.modifyLiquidity(
+                    boundKey,
+                    ModifyLiquidityParams({
+                        tickLower: tickLower,
+                        tickUpper: tickUpper,
+                        liquidityDelta: -int256(uint256(lRemove)),
+                        salt: POSITION_SALT
+                    }),
+                    ""
+                );
+                _takeLeg(boundKey.currency0, delta.amount0(), user);
+                _takeLeg(boundKey.currency1, delta.amount1(), user);
+            }
+            // pay the withdrawer's proportional share of idle (collected fees / residual) too
+            _payIdle(boundKey.currency0, value, totalA, user);
+            _payIdle(boundKey.currency1, value, totalA, user);
+        }
+
+        token.burn(address(this), shares);
+        if (isSenior) {
+            seniorNav = nav - value;
+        } else {
+            juniorNav = nav - value;
+        }
+
+        return abi.encode(value);
+    }
+
+    /// @dev Take a credited (positive) delta leg from the PoolManager to `to`.
+    function _takeLeg(Currency currency, int128 amount, address to) internal {
+        if (amount > 0) currency.take(poolManager, to, uint256(uint128(amount)), false);
+    }
+
+    /// @dev Transfer the withdrawer's `value/totalA` share of an idle balance directly to `to`.
+    function _payIdle(Currency currency, uint256 value, uint256 totalA, address to) internal {
+        uint256 out = Math.mulDiv(currency.balanceOfSelf(), value, totalA);
+        if (out != 0) currency.transfer(to, out);
     }
 
     /// @dev Poke the position to realize fees into the hook's idle balance, then mark to market.
