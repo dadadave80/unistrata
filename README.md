@@ -6,20 +6,26 @@
 
 ## Frontend (Phase 6)
 
-The protocol app lives in `frontend/` — the Unistrata design system + a 4-screen click-through (Landing,
-Deposit, Observatory, Simulator) built around the **Strata Core** (a live sedimentary cross-section of the
-pool's capital structure). It's a self-contained React+Babel prototype (CDN deps), wired to mock data, so
-it runs with any static server — no build step:
+The protocol app lives in `frontend/` — a **Next.js (App Router, TypeScript)** app with **Reown AppKit +
+wagmi/viem** for wallet connection, recreating the Unistrata design system (ported from a
+[Claude Design](https://claude.ai/design) handoff bundle). Four screens — **Landing** (thesis + money
+chart), **Deposit** (Reown connect + real `approve`/`deposit` write), **Observatory** (live on-chain
+dashboard), **Simulator** — built around the **Strata Core** (a live sedimentary cross-section of the
+pool's capital structure). Uses **bun**.
 
 ```bash
-cd frontend && python3 -m http.server 8000
-# open http://localhost:8000/ui_kits/strata-app/index.html
+cd frontend
+cp .env.example .env       # set NEXT_PUBLIC_REOWN_PROJECT_ID (https://dashboard.reown.com)
+bun install
+bun run dev                # http://localhost:3000   (bun run build for production)
 ```
 
-Design source: a [Claude Design](https://claude.ai/design) handoff bundle. `frontend/readme.md` is the
-design guide (brand, tokens, components); `frontend/styles.css` is the single token/font entry point.
-v1 uses the mock scenario engine in `ui_kits/strata-app/data.js`; wiring it to the real `sim/out/*.json`
-money chart + live testnet reads (the deployed hook's NAV / epoch / varAcc) is the next step.
+**Real data wired in:** the money chart (Landing + Simulator) plots the real Phase-5 `sim/out/*.json`
+(generated into `lib/sim-data.ts`); the Observatory reads the live deployed hook (`0x721480…`) via wagmi
+(`lib/useHookState.ts`) with the verified spike event trail (`lib/testnet.ts`); Deposit does a real
+`approve` → `deposit` write through the connected wallet. Design tokens live in `app/globals.css`,
+components in `components/`. (Design tokens/components keep the `Strata*`/`senior`/`junior` code stems;
+all user-facing copy is Unistrata / Bedrock / Sediment.)
 
 ## Pinned dependencies (Phase 0)
 
