@@ -26,6 +26,29 @@ export const hookAbi = [
     ],
     outputs: [{ name: 'shares', type: 'uint256' }],
   },
+  {
+    // Permit2 path — caller signs a batch transfer; the hook pulls exact amounts, deposits, refunds the rest.
+    type: 'function', name: 'depositWithPermit', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'isBedrock', type: 'bool' },
+      {
+        name: 'permit', type: 'tuple',
+        components: [
+          {
+            name: 'permitted', type: 'tuple[]',
+            components: [
+              { name: 'token', type: 'address' },
+              { name: 'amount', type: 'uint256' },
+            ],
+          },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'deadline', type: 'uint256' },
+        ],
+      },
+      { name: 'signature', type: 'bytes' },
+    ],
+    outputs: [{ name: 'shares', type: 'uint256' }],
+  },
 ] as const;
 
 export const erc20Abi = [

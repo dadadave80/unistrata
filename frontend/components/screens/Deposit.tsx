@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { parseUnits, formatUnits } from 'viem';
-import { useAccount, useReadContracts, useWriteContract } from 'wagmi';
+import { parseUnits, formatUnits, maxUint256 } from 'viem';
+import { useAccount, useReadContracts, useWriteContract, useSignTypedData } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
 import { Button } from '@/components/Button';
 import { Badge } from '@/components/Badge';
@@ -11,6 +11,7 @@ import { TrancheCard } from '@/components/TrancheCard';
 import { NumberTicker } from '@/components/NumberTicker';
 import { ShieldCheck, Flame, LogOut } from 'lucide-react';
 import { HOOK_ADDRESS, TOKEN0, TOKEN1, TOKEN_WETH, TOKEN_USDC, erc20Abi, hookAbi, CHAIN_ID } from '@/lib/contracts';
+import { PERMIT2_ADDRESS, buildPermitBatch } from '@/lib/permit2';
 import { fmtUsd, shortAddr } from '@/lib/format';
 
 const depositCSS = `
@@ -68,11 +69,13 @@ export function Deposit() {
 
   const { open } = useAppKit();
   const { address, isConnected } = useAccount();
-  const { writeContractAsync, isPending } = useWriteContract();
+  const { writeContractAsync } = useWriteContract();
+  const { signTypedDataAsync } = useSignTypedData();
 
   const [tranche, setTranche] = React.useState<'senior' | 'junior'>('senior');
   const [amount, setAmount] = React.useState(2000);
   const [depTx, setDepTx] = React.useState<string | null>(null);
+  const [depBusy, setDepBusy] = React.useState<false | 'approve' | 'sign' | 'deposit'>(false);
   const [err, setErr] = React.useState<string | null>(null);
   const [faucetBusy, setFaucetBusy] = React.useState(false);
   const [faucetTx, setFaucetTx] = React.useState<string | null>(null);
@@ -82,14 +85,14 @@ export function Deposit() {
   const sharePrice = isSenior ? 1.0 : 0.97;
   const shares = amount / sharePrice;
 
-  // live balances + current allowances of the connected wallet
+  // live balances + current Permit2 allowances of the connected wallet (allowance is to Permit2, never the hook)
   const ZERO = '0x0000000000000000000000000000000000000000';
   const { data: bals, refetch: refetchBals } = useReadContracts({
     contracts: [
       { address: TOKEN_USDC, abi: erc20Abi, functionName: 'balanceOf', args: [address ?? ZERO], chainId: CHAIN_ID },
       { address: TOKEN_WETH, abi: erc20Abi, functionName: 'balanceOf', args: [address ?? ZERO], chainId: CHAIN_ID },
-      { address: TOKEN0, abi: erc20Abi, functionName: 'allowance', args: [address ?? ZERO, HOOK_ADDRESS], chainId: CHAIN_ID },
-      { address: TOKEN1, abi: erc20Abi, functionName: 'allowance', args: [address ?? ZERO, HOOK_ADDRESS], chainId: CHAIN_ID },
+      { address: TOKEN0, abi: erc20Abi, functionName: 'allowance', args: [address ?? ZERO, PERMIT2_ADDRESS], chainId: CHAIN_ID },
+      { address: TOKEN1, abi: erc20Abi, functionName: 'allowance', args: [address ?? ZERO, PERMIT2_ADDRESS], chainId: CHAIN_ID },
     ],
     query: { enabled: isConnected },
   });
@@ -116,34 +119,59 @@ export function Deposit() {
     }
   }
 
-  async function approveAndDeposit() {
+  async function permitAndDeposit() {
+    if (!address) { open(); return; }
     setErr(null); setDepTx(null);
     try {
       // amount0 = tUSDC (6 dec), amount1 = tWETH (18 dec) ≈ balanced at 1 tWETH = 3000 tUSDC.
       const amount0Max = parseUnits(String(amount), 6);
       const amount1Max = parseUnits((amount / 3000).toFixed(18), 18);
-      // EXACT approvals — only what this deposit needs, and only if the current allowance is short.
-      // No unbounded maxUint256 grant; the hook consumes it on deposit, so no standing approval lingers.
+
+      // One-time unlimited approval to the audited, immutable canonical Permit2 (never to the hook).
+      // After this, deposits are just a signature — no further approvals. The hook can only ever pull
+      // via a fresh, exact-amount, deadline-bounded Permit2 signature, so the standing allowance is inert
+      // without the user's explicit sign-off each time.
       if (allow0 < amount0Max) {
-        await writeContractAsync({ address: TOKEN0, abi: erc20Abi, functionName: 'approve', args: [HOOK_ADDRESS, amount0Max], chainId: CHAIN_ID });
+        setDepBusy('approve');
+        await writeContractAsync({ address: TOKEN0, abi: erc20Abi, functionName: 'approve', args: [PERMIT2_ADDRESS, maxUint256], chainId: CHAIN_ID });
       }
       if (allow1 < amount1Max) {
-        await writeContractAsync({ address: TOKEN1, abi: erc20Abi, functionName: 'approve', args: [HOOK_ADDRESS, amount1Max], chainId: CHAIN_ID });
+        setDepBusy('approve');
+        await writeContractAsync({ address: TOKEN1, abi: erc20Abi, functionName: 'approve', args: [PERMIT2_ADDRESS, maxUint256], chainId: CHAIN_ID });
       }
-      const tx = await writeContractAsync({ address: HOOK_ADDRESS, abi: hookAbi, functionName: 'deposit', args: [isSenior, amount0Max, amount1Max], chainId: CHAIN_ID });
+
+      // Sign the exact-amount batch transfer (spender = the hook). Gasless.
+      setDepBusy('sign');
+      const p = buildPermitBatch({ token0: TOKEN0, amount0Max, token1: TOKEN1, amount1Max, spender: HOOK_ADDRESS, chainId: CHAIN_ID });
+      const signature = await signTypedDataAsync({
+        domain: p.domain, types: p.types, primaryType: p.primaryType, message: p.message,
+      });
+
+      // The hook pulls the maxes via Permit2, deposits, mints shares to us, and refunds the unused remainder.
+      setDepBusy('deposit');
+      const tx = await writeContractAsync({
+        address: HOOK_ADDRESS, abi: hookAbi, functionName: 'depositWithPermit',
+        // viem can't infer the nested tuple[] component type (collapses `permitted` to never[]); the
+        // runtime struct shape is correct and verified by the on-chain depositWithPermit test.
+        args: [isSenior, p.permitStruct as never, signature], chainId: CHAIN_ID,
+      });
       setDepTx(tx);
       await refetchBals();
     } catch (e: unknown) {
       const m = e instanceof Error ? e.message : String(e);
       setErr(m.length > 140 ? m.slice(0, 140) + '…' : m);
+    } finally {
+      setDepBusy(false);
     }
   }
 
-  let depLabel: string; let depDisabled = false; let depAction: () => void = approveAndDeposit;
+  let depLabel: string; let depDisabled = false; let depAction: () => void = permitAndDeposit;
   if (!isConnected) { depLabel = 'Connect wallet to deposit'; depAction = () => open(); }
   else if (!(amount > 0)) { depLabel = 'Enter an amount'; depDisabled = true; }
-  else if (isPending) { depLabel = 'Confirm in wallet…'; depDisabled = true; }
-  else { depLabel = isSenior ? 'Approve & deposit to Bedrock' : 'Approve & deposit to Sediment'; }
+  else if (depBusy === 'approve') { depLabel = 'Approve Permit2 in wallet…'; depDisabled = true; }
+  else if (depBusy === 'sign') { depLabel = 'Sign the deposit…'; depDisabled = true; }
+  else if (depBusy === 'deposit') { depLabel = 'Confirm deposit in wallet…'; depDisabled = true; }
+  else { depLabel = isSenior ? 'Sign & deposit to Bedrock' : 'Sign & deposit to Sediment'; }
 
   return (
     <div>
