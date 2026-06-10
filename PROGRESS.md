@@ -87,8 +87,11 @@ Fallback — ETH Sepolia (11155111): PoolManager `0xE03A1074c86CFeDd5C142C4F04F1
 PositionManager `0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4` · StateView `0xE1Dd9c3fA50EDB962E442f60DfBc432e24537E4C`.
 
 ### (3) Reactive Network testnet + callback proxy
-- **Reactive testnet:** Lasna, chainId `5318007` (RPC `https://lasna-rpc.rnk.dev/`, system contract
-  `0x…fffFfF`). Kopli deprecated 2025-07-28 — do not use.
+- **Reactive testnet:** Lasna, chainId `5318007` (RPC **`https://lasna-omni-rpc.rnk.dev/`** — the live
+  post-Omni-fork endpoint; system contract `0x…fffFfF`). Kopli deprecated 2025-07-28 — do not use.
+  **RESOLVED 2026-06-11:** `lasna-rpc.rnk.dev` is the stale pre-fork node (~360k blocks behind; `subscribe`
+  reverts `"Failure"` there); the RSC deploy simulates cleanly on `lasna-omni-rpc`. Fund the deployer on
+  the omni chain — balances do NOT carry across the fork (same chainId, diverged state).
 - **Callback Proxy on Unichain Sepolia (1301):** `0x9299472A6399Fd1027ebF067571Eb3e3D7837FC4` — pass to
   `AbstractCallback(_callback_sender)` and authorize for callbacks.
 - Fallback callback proxy (ETH Sepolia): `0xc9f36411C9897e7F959D99ffca2a0Ba7ee0D7bDA`.
@@ -120,8 +123,8 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
 - **On-chain address confirmation:** v4 + callback-proxy addresses are doc-sourced; verify bytecode
   (`cast code <addr> --rpc-url <chain>`) before wiring scripts. A conflicting ETH Sepolia proxy
   (`0x9b9BB25f…Cf434`) surfaced in a snippet — official table value used here; confirm before auth.
-- **Lasna RPC / system-contract** address has doc ambiguity (`fffFfF` in-contract vs `0x8888…8888`
-  network-level; `lasna-rpc` vs `lasna-omni-rpc`) — confirm live at deploy time.
+- **Lasna RPC ambiguity RESOLVED:** use `lasna-omni-rpc.rnk.dev` (live); `lasna-rpc.rnk.dev` is stale.
+  (System-contract `0x…fffFfF` confirmed working via the omni RSC-deploy simulation.)
 - **Local script drift:** `script/01_*`/`02_*` are modified vs v4-template baseline — confirm intentional.
 
 ---

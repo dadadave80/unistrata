@@ -22,7 +22,7 @@ a single Reactive Smart Contract (`StrataReactive`) on Reactive Lasna drives the
 | Origin chain | Unichain Sepolia — chainId **1301** |
 | v4 PoolManager (origin) | `0x00B036B58a818B1BC34d502D3fE730Db729e62AC` |
 | Reactive callback proxy (origin) | `0x9299472A6399Fd1027ebF067571Eb3e3D7837FC4` |
-| Reactive testnet | Lasna — chainId **5318007**, RPC `https://lasna-rpc.rnk.dev/` |
+| Reactive testnet | Lasna — chainId **5318007**, RPC `https://lasna-omni-rpc.rnk.dev/` (post-Omni-fork; **live**) |
 | Reactive system contract | `0x…fffFfF` |
 | reactive-lib | `Reactive-Network/reactive-lib@v0.2.0` |
 | CRON topic (Cron100 ≈ 12 min) | `0xb49937fb8970e19fd46d48f7e3fb00d659deac0347f79cd7cb542f0fc1503c70` |
@@ -68,7 +68,7 @@ forge script script/strata/00_DeployMockTokens.s.sol \
 # 2. RSC on Lasna (constructor registers both subscriptions = "deploy is subscribe"). Reads
 #    STRATA_HOOK from .env. → writes STRATA_REACTIVE to .env
 forge script script/strata/02_DeployReactive.s.sol \
-  --rpc-url https://lasna-rpc.rnk.dev/ --account $ACCOUNT --sender $SENDER --broadcast
+  --rpc-url https://lasna-omni-rpc.rnk.dev/ --account $ACCOUNT --sender $SENDER --broadcast
 
 # 3a. Fund the hook (destination callback contract) via the callback proxy. Reads STRATA_HOOK from .env.
 HOOK_FUNDING_WEI=50000000000000000 \
@@ -78,7 +78,7 @@ HOOK_FUNDING_WEI=50000000000000000 \
 # 3b. Top up the RSC on Lasna. Reads STRATA_REACTIVE from .env.
 RSC_FUNDING_WEI=... \
   forge script script/strata/03_FundAndSubscribe.s.sol --sig "fundReactive()" \
-  --rpc-url https://lasna-rpc.rnk.dev/ --account $ACCOUNT --sender $SENDER --broadcast
+  --rpc-url https://lasna-omni-rpc.rnk.dev/ --account $ACCOUNT --sender $SENDER --broadcast
 ```
 
 Funding model: the callback proxy fronts gas on the origin chain and bills the hook as **debt** (min
