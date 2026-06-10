@@ -8,14 +8,25 @@ deviations from the plan (with reasons). Newest status at the top of each phase.
 
 ---
 
-## Live testnet deployment (Phase 4)
+## Live testnet deployment (Phase 4 — verified on-chain 2026-06-11)
 
-**Redeploying fresh as Unistrata.** An earlier pilot under the working name *Strata* validated the full
-flow on-chain (mechanism proven; only addresses change): the RSC deploy emitted **two `Subscribe` events**
-+ **zero `SubscribeFailed`** (CRON on `5318007` + the hook's observation event on `1301` — proving Unichain
-Sepolia is an accepted Lasna origin chain), and one multichain `03` run funded both legs (both `0x1`). Fresh
-Unistrata addresses + the heartbeat/spike tx trail recorded here post-redeploy; pilot receipts remain under
-`broadcast/`.
+Fresh Unistrata stack deployed AND subscribed end-to-end (addresses in `.env`; receipts under `broadcast/`):
+
+| Contract | Chain | Address |
+|---|---|---|
+| tWETH (18) | Unichain Sepolia 1301 | `0x911EcAEde6A8AE982851000C019b063A8688d9DB` |
+| tUSDC (6) | Unichain Sepolia 1301 | `0x4C63d215C51B82A401Bb11236349d7Ef12F1B3B4` |
+| UnistrataHook | Unichain Sepolia 1301 | `0x1E9368Dee25c05472CfB234FF3091f10482Fd840` (deploy `0x05ce35f6…`, pool init `0x36525964…`) |
+| UnistrataReactive | Lasna 5318007 | `0x1F9509ae8B2D5186449Cb8f8a7855eCc43d2EC67` (deploy `0x693199d3…`) |
+
+The RSC deploy tx emitted **two `Subscribe` events** (system contract `0x…ffffff`) and **zero
+`SubscribeFailed`** → the constructor's try/catch subscribed on-chain in one broadcast: (1) CRON on
+5318007, (2) UnistrataObservation from the hook on **1301** (`0x1E9368…`) — proving Unichain Sepolia is an
+accepted Lasna origin chain.
+
+**Funded** via one multichain `03_FundAndSubscribe` run (both legs status `0x1`): hook debt prefund
+`depositTo` on 1301 (`0x211be173…`, 0.05 ETH) + RSC top-up on 5318007 (`0xf08460f1…`, 5 REACT; balance
+confirmed 5 REACT). Remaining: capture the heartbeat + spike tx trails.
 
 ---
 

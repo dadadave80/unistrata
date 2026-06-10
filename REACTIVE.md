@@ -97,20 +97,34 @@ callback gas limit 100,000); `depositTo(hook)` pre-funds and settles debt. Leave
 native gas or it gets **blocklisted** until the debt clears. Determine the right pre-fund amount
 empirically on testnet (no published minimum beyond the gas floor).
 
-## Live testnet deployment (Phase 4)
+## Live testnet deployment (Phase 4 — verified on-chain)
 
-> **Redeploying fresh as Unistrata.** An earlier pilot under the working name *Strata* already validated
-> the full cross-chain flow on-chain, so the mechanism is proven; only the addresses change:
->
-> - the RSC deploy tx emitted **two `Subscribe` events** (system contract `0x…ffffff`) and **zero
->   `SubscribeFailed`** — confirming the constructor's try/catch subscribes in a single broadcast (CRON on
->   Lasna `5318007` + the hook's observation event on origin `1301`, **proving Unichain Sepolia is a
->   supported Lasna origin chain**);
-> - one multichain `03` run funded both legs (hook debt prefund on `1301` + RSC top-up on `5318007`, both
->   status `0x1`).
->
-> The fresh **Unistrata** addresses + the heartbeat/spike tx trail will be recorded here after the
-> `00 → 03` redeploy. (Pilot broadcast receipts remain under `broadcast/`.)
+Deployed and subscribed end-to-end (addresses also in `.env`, broadcast receipts under `broadcast/`):
+
+| Contract | Chain | Address | Deploy tx |
+|---|---|---|---|
+| tWETH (18) | Unichain Sepolia 1301 | `0x911EcAEde6A8AE982851000C019b063A8688d9DB` | — |
+| tUSDC (6) | Unichain Sepolia 1301 | `0x4C63d215C51B82A401Bb11236349d7Ef12F1B3B4` | — |
+| UnistrataHook | Unichain Sepolia 1301 | `0x1E9368Dee25c05472CfB234FF3091f10482Fd840` | `0x05ce35f6…5e791` (+ pool init `0x36525964…da3db`) |
+| UnistrataReactive (RSC) | Lasna 5318007 | `0x1F9509ae8B2D5186449Cb8f8a7855eCc43d2EC67` | `0x693199d3…71550` |
+
+**Subscription proof:** the UnistrataReactive deploy tx emitted **two `Subscribe` events** from the system
+contract `0x…ffffff` and **zero `SubscribeFailed`** — confirming the constructor's try/catch subscribed
+on-chain in the same broadcast:
+1. CRON heartbeat — subscriber `0x1F9509…`, chainId `5318007`, contract `0x…ffffff` (the service);
+2. UnistrataObservation — subscriber `0x1F9509…`, chainId `1301`, contract `0x1E9368…` (the hook).
+
+The accepted cross-chain subscription to chainId `1301` confirms **Unichain Sepolia is a supported origin
+chain** for Lasna subscriptions.
+
+**Funding (one multichain `03` run, both legs status `0x1`):**
+
+| Leg | Chain | Tx | Amount |
+|---|---|---|---|
+| `depositTo(hook)` via callback proxy | Unichain Sepolia 1301 | `0x211be173…a4f9a` | 0.05 ETH (debt prefund) |
+| RSC top-up | Lasna 5318007 | `0xf08460f1…f30ef` | 5 REACT |
+
+Remaining for the demo: capture the heartbeat and spike tx trails below.
 
 ## Demo capture (Phase 4 acceptance — tx hashes for the README/video)
 
