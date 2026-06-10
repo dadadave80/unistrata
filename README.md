@@ -1,3 +1,35 @@
+# Strata — Uniswap v4 IL Tranching Hook
+
+> Built on the [Uniswap v4 Hook Template](https://github.com/Uniswap/v4-template) (template docs preserved below). See `STRATA_BUILD_BRIEF.md` for the product spec.
+
+## Pinned dependencies (Phase 0)
+
+Toolchain: **forge 1.7.1** (`4072e48`), **solc 0.8.30** (via `foundry.toml`), EVM target `cancun`.
+
+Base: **Uniswap/v4-template @ `1fbf95547791f0821a170b88c750cb2e04e6818b`** (2025-10-28).
+
+Direct submodules (recorded in `.gitmodules` + `foundry.lock`):
+
+| Dependency | Commit | Tag |
+| --- | --- | --- |
+| `lib/forge-std` | `8bbcf6e3f8f62f419e5429a0bd89331c85c37824` | v1.10.0 |
+| `lib/uniswap-hooks` (OpenZeppelin) | `e59fe72c110c3862eec9b332530dce49ca506bbb` | v1.1.0 |
+| `lib/hookmate` | `33408fbc15e083eb0bc4205fa37cb6ba0a926f44` | v0.2.0+3 |
+
+Key transitive pins (vendored under `lib/uniswap-hooks/lib/`, fixed by the parents above):
+
+| Dependency | Commit | Tag |
+| --- | --- | --- |
+| `v4-core` | `a7cf038cd568801a79a9b4cf92cd5b52c95c8585` | v4.0.0+11 |
+| `v4-periphery` | `eeb3eff28dd5f5f17aa94180fa3610ff59b0e1c8` | post-`update-core` branch, rev recorded by uniswap-hooks v1.1.0 |
+| `openzeppelin-contracts` (remapped as `@openzeppelin/contracts/`, via v4-core) | `dbb6104ce834628e473d2173bbc9d47f81a9eec3` | v5.0.2 (v5.0.0+12) |
+| `permit2` (via v4-periphery) | `cc56ad0f3439c502c246fc5cfcc3db92bb8b7219` | — |
+| `solmate` (via v4-core) | `4b47a19038b798b4a33d9749d25e570443520647` | v6+200 |
+
+Reproduce with `git submodule update --init --recursive` — every rev above is recorded in git; `forge install` is not needed.
+
+---
+
 # Uniswap v4 Hook Template
 
 **A template for writing Uniswap v4 Hooks 🦄**
