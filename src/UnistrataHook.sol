@@ -16,7 +16,7 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {ModifyLiquidityParams, SwapParams} from "v4-core/src/types/PoolOperation.sol";
 import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
 
-import {TrancheToken} from "src/TrancheToken.sol";
+import {StratumToken} from "src/StratumToken.sol";
 import {NavLib} from "src/libraries/NavLib.sol";
 import {VarianceLib} from "src/libraries/VarianceLib.sol";
 import {WaterfallLib} from "src/libraries/WaterfallLib.sol";
@@ -24,7 +24,7 @@ import {WaterfallLib} from "src/libraries/WaterfallLib.sol";
 /// @title UnistrataHook
 /// @author David Dada (https://github.com/dadadave80)
 /// @notice Uniswap v4 hook that turns one pool into a bedrock/sediment capital structure (Unistrata).
-///         The hook owns all pool liquidity; depositors hold tranche shares (BEDR / SEDI) instead of
+///         The hook owns all pool liquidity; depositors hold tranche shares (beWETH / seWETH) instead of
 ///         v4 positions. It measures realized variance from the pool's own tick path, prices a bedrock
 ///         coupon off that variance, and settles a bedrock/sediment waterfall each epoch.
 /// @dev Single-pool vault: the hook binds to the first pool that initializes it and rejects others.
@@ -113,8 +113,8 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     bytes32 internal constant POSITION_SALT = bytes32(0);
 
     // --- tranche share tokens (one each, deployed at construction) ---
-    TrancheToken public immutable bedrock; // BEDR
-    TrancheToken public immutable sediment; // SEDI
+    StratumToken public immutable bedrock; // beWETH
+    StratumToken public immutable sediment; // seWETH
 
     // --- immutable config ---
     bool public immutable numeraireIsToken1;
@@ -168,8 +168,8 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         // slither-disable-next-line tx-origin
         rvm_id = tx.origin;
 
-        bedrock = new TrancheToken("Unistrata Bedrock", "BEDR", address(this));
-        sediment = new TrancheToken("Unistrata Sediment", "SEDI", address(this));
+        bedrock = new StratumToken("Unistrata Bedrock", "beWETH", address(this));
+        sediment = new StratumToken("Unistrata Sediment", "seWETH", address(this));
 
         numeraireIsToken1 = cfg.numeraireIsToken1;
         decimals0 = cfg.decimals0;
@@ -191,7 +191,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
 
     /// @notice Deposit token0+token1 into a tranche; the hook adds full-range liquidity and mints
     ///         shares at the tranche's current NAV/share. Caller must approve this hook for both tokens.
-    /// @param isBedrock   True to mint bedrock (BEDR), false for sediment (SEDI).
+    /// @param isBedrock   True to mint bedrock (beWETH), false for sediment (seWETH).
     /// @param amount0Max Max token0 to pull from the caller.
     /// @param amount1Max Max token1 to pull from the caller.
     /// @return shares    Tranche shares minted to the caller.
@@ -229,7 +229,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     ///         must approve this hook for the tranche token.
     /// @return id The request id, used in {claim}.
     function requestWithdraw(bool isBedrock, uint256 shares) external nonReentrant returns (uint256 id) {
-        TrancheToken token = isBedrock ? bedrock : sediment;
+        StratumToken token = isBedrock ? bedrock : sediment;
         token.transferFrom(msg.sender, address(this), shares); // escrow
 
         uint256 eligible = epochId + (isBedrock ? 1 : 2);
@@ -390,7 +390,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     ///      the removed value are `nav·shares/supply`, the remaining holders' NAV/share is unchanged.
     function _unlockWithdraw(bytes memory payload) internal returns (bytes memory) {
         (address user, bool isBedrock, uint256 shares) = abi.decode(payload, (address, bool, uint256));
-        TrancheToken token = isBedrock ? bedrock : sediment;
+        StratumToken token = isBedrock ? bedrock : sediment;
         uint256 supply = token.totalSupply();
         uint256 nav = isBedrock ? bedrockNav : sedimentNav;
         uint256 value = Math.mulDiv(nav, shares, supply);
@@ -495,7 +495,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         internal
         returns (uint256 minted)
     {
-        TrancheToken token = isBedrock ? bedrock : sediment;
+        StratumToken token = isBedrock ? bedrock : sediment;
         uint256 supply = token.totalSupply();
         if (supply == 0) {
             if (depositValue <= DEAD_SHARES) revert UnistrataHook__DepositTooSmall();

@@ -15,7 +15,7 @@ import {DemoERC20} from "../../script/unistrata/DemoERC20.sol";
 import {UnistrataDeploy} from "../../script/unistrata/UnistrataDeploy.sol";
 import {BaseTest} from "../utils/BaseTest.sol";
 import {SimSwapper} from "./SimSwapper.sol";
-import {TrancheToken} from "src/TrancheToken.sol";
+import {StratumToken} from "src/StratumToken.sol";
 import {UnistrataHook} from "src/UnistrataHook.sol";
 import {NavLib} from "src/libraries/NavLib.sol";
 
@@ -192,7 +192,7 @@ contract SimReplayTest is BaseTest {
         return NavLib.valueInNumeraire(hodl0, hodl1, sqrtP, numeraireIsToken1, dec0, dec1);
     }
 
-    function _nps(TrancheToken token, uint256 nav) internal view returns (uint256) {
+    function _nps(StratumToken token, uint256 nav) internal view returns (uint256) {
         uint256 supply = token.totalSupply();
         return supply == 0 ? 0 : nav * 1e18 / supply;
     }

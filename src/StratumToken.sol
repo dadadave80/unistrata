@@ -3,23 +3,23 @@ pragma solidity 0.8.34;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-/// @title TrancheToken
+/// @title StratumToken
 /// @author David Dada (https://github.com/dadadave80)
-/// @notice Minimal ERC-20 share token for a Unistrata tranche (BEDR / SEDI). Minting and burning
+/// @notice Minimal ERC-20 share token for a Unistrata tranche (beWETH / seWETH). Minting and burning
 ///         are restricted to the controlling hook, which is the sole authority over supply: shares
 ///         are minted on deposit at NAV and burned on settled withdrawal.
 /// @dev 18 decimals (OZ default). One instance is deployed per tranche by the hook.
 /// @custom:security-contact daveproxy80@gmail.com
 /// @custom:security-contact Discord: daveproxy80
-contract TrancheToken is ERC20 {
+contract StratumToken is ERC20 {
     /// @notice Thrown when a non-hook address calls a supply-changing function.
-    error TrancheToken__OnlyHook();
+    error StratumToken__OnlyHook();
 
     /// @notice The hook permitted to mint and burn shares. Set once at construction.
     address public immutable hook;
 
     modifier onlyHook() {
-        if (msg.sender != hook) revert TrancheToken__OnlyHook();
+        if (msg.sender != hook) revert StratumToken__OnlyHook();
         _;
     }
 

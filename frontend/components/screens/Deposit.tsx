@@ -219,7 +219,7 @@ export function Deposit() {
                 <div className="dp__line dp__line--em">
                   <span className="k">Shares out</span>
                   <span className="v" style={{ color: isSenior ? 'var(--senior-200)' : 'var(--junior-200)' }}>
-                    <NumberTicker value={shares} decimals={2} /> {isSenior ? 'BEDR' : 'SEDI'}
+                    <NumberTicker value={shares} decimals={2} /> {isSenior ? 'beWETH' : 'seWETH'}
                   </span>
                 </div>
                 <div className="dp__line"><span className="k">Pairs with</span><span className="v">≈ {(amount / 3000).toFixed(4)} tWETH</span></div>

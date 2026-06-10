@@ -2,23 +2,23 @@
 pragma solidity ^0.8.30;
 
 import {Test} from "forge-std/Test.sol";
-import {TrancheToken} from "src/TrancheToken.sol";
+import {StratumToken} from "src/StratumToken.sol";
 
 /// @notice Unit tests for the minimal tranche share token.
 /// The test contract itself plays the role of the controlling hook.
-contract TrancheTokenTest is Test {
-    TrancheToken internal token;
+contract StratumTokenTest is Test {
+    StratumToken internal token;
     address internal hook = address(this);
     address internal alice = makeAddr("alice");
     address internal bob = makeAddr("bob");
 
     function setUp() public {
-        token = new TrancheToken("Unistrata Bedrock", "BEDR", hook);
+        token = new StratumToken("Unistrata Bedrock", "beWETH", hook);
     }
 
     function test_constructor_setsMetadataAndHook() public view {
         assertEq(token.name(), "Unistrata Bedrock");
-        assertEq(token.symbol(), "BEDR");
+        assertEq(token.symbol(), "beWETH");
         assertEq(token.decimals(), 18);
         assertEq(token.hook(), hook);
         assertEq(token.totalSupply(), 0);
@@ -32,7 +32,7 @@ contract TrancheTokenTest is Test {
 
     function test_RevertWhen_MintCalledByNonHook() public {
         vm.prank(alice);
-        vm.expectRevert(TrancheToken.TrancheToken__OnlyHook.selector);
+        vm.expectRevert(StratumToken.StratumToken__OnlyHook.selector);
         token.mint(alice, 1e18);
     }
 
@@ -46,7 +46,7 @@ contract TrancheTokenTest is Test {
     function test_RevertWhen_BurnCalledByNonHook() public {
         token.mint(alice, 1e18);
         vm.prank(bob);
-        vm.expectRevert(TrancheToken.TrancheToken__OnlyHook.selector);
+        vm.expectRevert(StratumToken.StratumToken__OnlyHook.selector);
         token.burn(alice, 1e18);
     }
 
