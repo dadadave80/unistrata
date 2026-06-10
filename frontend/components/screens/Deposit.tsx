@@ -123,9 +123,13 @@ export function Deposit() {
     if (!address) { open(); return; }
     setErr(null); setDepTx(null);
     try {
-      // amount0 = tUSDC (6 dec), amount1 = tWETH (18 dec) ≈ balanced at 1 tWETH = 3000 tUSDC.
-      const amount0Max = parseUnits(String(amount), 6);
-      const amount1Max = parseUnits((amount / 3000).toFixed(18), 18);
+      // The "Amount in" field is denominated in tUSDC; pair it with ~balanced tWETH at 1 tWETH = 3000 tUSDC.
+      // Map each leg to token0/token1 BY IDENTITY (the pool sorts tokens by address) so the Permit2 batch is
+      // always ordered [currency0, currency1] — a future re-deploy that reorders tokens can't silently break it.
+      const usdcAmount = parseUnits(String(amount), 6); // tUSDC, 6 dec
+      const wethAmount = parseUnits((amount / 3000).toFixed(18), 18); // tWETH, 18 dec
+      const amount0Max = (TOKEN0 as string) === TOKEN_USDC ? usdcAmount : wethAmount;
+      const amount1Max = (TOKEN1 as string) === TOKEN_USDC ? usdcAmount : wethAmount;
 
       // One-time unlimited approval to the audited, immutable canonical Permit2 (never to the hook).
       // After this, deposits are just a signature — no further approvals. The hook can only ever pull
