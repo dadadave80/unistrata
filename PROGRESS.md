@@ -22,7 +22,11 @@ Full stack deployed AND subscribed end-to-end (addresses in `.env`; receipts und
 The RSC deploy tx emitted **two `Subscribe` events** (system contract `0x…ffffff`) and **zero
 `SubscribeFailed`** → the constructor's try/catch subscribed on-chain in one broadcast: (1) CRON on
 5318007, (2) StrataObservation from the hook on **1301** — proving Unichain Sepolia is an accepted Lasna
-origin chain. Remaining: fund RSC (REACT) + hook (callback debt), then capture heartbeat + spike tx trails.
+origin chain.
+
+**Funded** via one multichain `03_FundAndSubscribe` run (both legs status `0x1`): hook debt prefund
+`depositTo` on 1301 (`0x71a2ac47…`, 0.05 ETH) + RSC top-up on 5318007 (`0x8b6040f3…`, 5 REACT; balance
+0 → 5). Remaining: capture the heartbeat + spike tx trails.
 
 ---
 

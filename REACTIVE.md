@@ -70,15 +70,17 @@ forge script script/strata/00_DeployMockTokens.s.sol \
 forge script script/strata/02_DeployReactive.s.sol \
   --rpc-url https://lasna-rpc.rnk.dev/ --account $ACCOUNT --sender $SENDER --broadcast
 
-# 3a. Fund the hook (destination callback contract) via the callback proxy. Reads STRATA_HOOK from .env.
-HOOK_FUNDING_WEI=50000000000000000 \
-  forge script script/strata/03_FundAndSubscribe.s.sol --sig "fundHook()" \
-  --rpc-url $UNICHAIN_SEPOLIA_RPC --account $ACCOUNT --sender $SENDER --broadcast
+# 3. Fund BOTH chains in one multichain run (default run()): the hook on Unichain Sepolia via the
+#    callback proxy AND the RSC on Lasna. The script selects each chain with its own fork, so pass
+#    NO --rpc-url. Amounts are integer wei. Reads STRATA_HOOK/STRATA_REACTIVE from .env.
+HOOK_FUNDING_WEI=50000000000000000 RSC_FUNDING_WEI=5000000000000000000 \
+  forge script script/strata/03_FundAndSubscribe.s.sol \
+  --account $ACCOUNT --sender $SENDER --broadcast
+# (add --multi only when later doing --resume / --verify; broadcasts land under broadcast/multi/)
 
-# 3b. Top up the RSC on Lasna. Reads STRATA_REACTIVE from .env.
-RSC_FUNDING_WEI=... \
-  forge script script/strata/03_FundAndSubscribe.s.sol --sig "fundReactive()" \
-  --rpc-url https://lasna-rpc.rnk.dev/ --account $ACCOUNT --sender $SENDER --broadcast
+# 3 (alt). Single-chain top-ups — pass --sig + the matching --rpc-url:
+#   forge script .. --sig "fundHook()"     --rpc-url unichain_sep   --broadcast --account $ACCOUNT ...
+#   forge script .. --sig "fundReactive()" --rpc-url reactive_lasna --broadcast --account $ACCOUNT ...
 ```
 
 Funding model: the callback proxy fronts gas on the origin chain and bills the hook as **debt** (min
@@ -104,8 +106,16 @@ on-chain in the same broadcast:
 2. StrataObservation — subscriber `0xddb792…`, chainId `1301`, contract `0xbc0ca5…` (the hook).
 
 The accepted cross-chain subscription to chainId `1301` confirms **Unichain Sepolia is a supported origin
-chain** for Lasna subscriptions. Remaining for the demo: fund the RSC (REACT) + the hook (callback debt),
-then capture the heartbeat and spike tx trails below.
+chain** for Lasna subscriptions.
+
+**Funding (one multichain `03` run, both legs status `0x1`):**
+
+| Leg | Chain | Tx | Amount |
+|---|---|---|---|
+| `depositTo(hook)` via callback proxy | Unichain Sepolia 1301 | `0x71a2ac47…4168d` | 0.05 ETH (debt prefund) |
+| RSC top-up | Lasna 5318007 | `0x8b6040f3…6aa51` | 5 REACT |
+
+Remaining for the demo: capture the heartbeat and spike tx trails below.
 
 ## Demo capture (Phase 4 acceptance — tx hashes for the README/video)
 
