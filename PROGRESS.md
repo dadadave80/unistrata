@@ -112,7 +112,7 @@ Callback Proxy; `coverDebt()`/`pay()` settle debt. Uncovered debt → contract *
 cleared. Keep pre-funded with native gas on Unichain Sepolia.
 
 ### ⚠️ Unverified / needs user
-- **Hackathon deadline / submission (Notion link, judging date) — UNKNOWN.** User must supply.
+- **Hackathon deadline: 2026-06-11 23:59 PDT** (~1.5 days from 06-10). Notion link still not provided.
 - **On-chain address confirmation:** v4 + callback-proxy addresses are doc-sourced; verify bytecode
   (`cast code <addr> --rpc-url <chain>`) before wiring scripts. A conflicting ETH Sepolia proxy
   (`0x9b9BB25f…Cf434`) surfaced in a snippet — official table value used here; confirm before auth.
@@ -137,8 +137,11 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
       tranche tokens (sSTR/jSTR), `getHookPermissions` (afterInitialize|afterSwap|beforeAddLiquidity),
       **single-pool binding** + variance seeding in `afterInitialize`, **external-LP guard** in
       `beforeAddLiquidity`. `Config` struct exposes all governance dials.
-  - [ ] deposit (both tranches) → `unlock` → `modifyLiquidity` (full-range add) → settle/take → mint at NAV
-  - [ ] attachment-point cap (θ_max), dead-shares guard, NAV views (`NavLib.totalAssets`), withdrawal queue
+  - [x] **deposit** (both tranches) → `unlock` → `modifyLiquidity` (full-range add) → settle from
+        depositor (`CurrencySettler`) → mint at NAV. TDD, **7 hook tests** vs local PoolManager.
+  - [x] attachment-point cap (θ_max), dead-shares guard (1000 to 0xdead), `totalAssets()` view
+        (matches tracked NAV ≤5 wei), `seniorCapacityRemaining()`.
+  - [ ] withdrawal queue (epoch-settled — lands with `settleEpoch`)
   - [ ] `afterSwap` variance wiring (`VarianceLib.observe` + `StrataObservation` event + fee-growth snapshot)
 
 > **Milestone — pure-math foundation complete.** All 3 §4 libraries done & TDD-covered (Waterfall 21,
