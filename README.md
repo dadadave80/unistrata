@@ -4,6 +4,23 @@
 
 **Tranches:** **Bedrock** = senior tranche — shielded, earns a fixed variance-priced coupon (the floor). **Sediment** = junior / first-loss tranche — underwrites the volatility, absorbs the impermanent loss, keeps the upside.
 
+## Frontend (Phase 6)
+
+The protocol app lives in `frontend/` — the Unistrata design system + a 4-screen click-through (Landing,
+Deposit, Observatory, Simulator) built around the **Strata Core** (a live sedimentary cross-section of the
+pool's capital structure). It's a self-contained React+Babel prototype (CDN deps), wired to mock data, so
+it runs with any static server — no build step:
+
+```bash
+cd frontend && python3 -m http.server 8000
+# open http://localhost:8000/ui_kits/strata-app/index.html
+```
+
+Design source: a [Claude Design](https://claude.ai/design) handoff bundle. `frontend/readme.md` is the
+design guide (brand, tokens, components); `frontend/styles.css` is the single token/font entry point.
+v1 uses the mock scenario engine in `ui_kits/strata-app/data.js`; wiring it to the real `sim/out/*.json`
+money chart + live testnet reads (the deployed hook's NAV / epoch / varAcc) is the next step.
+
 ## Pinned dependencies (Phase 0)
 
 Toolchain: **forge 1.7.1** (`4072e48`), **solc 0.8.30** (via `foundry.toml`), EVM target `cancun`.

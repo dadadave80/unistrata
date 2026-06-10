@@ -1,0 +1,31 @@
+<!-- @dsCard group="Colors" viewport="700x200" name="Semantic & data-viz" subtitle="Status roles and the four money-chart line colors." -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<link rel="stylesheet" href="../_card.css">
+<style>
+  .row2 { display:grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+  .legend { display:flex; align-items:center; gap:10px; padding:9px 11px; background:var(--surface-card); border-radius:var(--radius-md); box-shadow: var(--elev-1); }
+  .legend .ln { width:26px; height:0; border-top-width:2.5px; border-top-style:solid; flex:none; }
+  .legend .tx { font-family:var(--font-mono); font-size:10.5px; color:var(--text-secondary); letter-spacing:0.02em; }
+  .legend .tx small { display:block; color:var(--text-tertiary); font-size:9px; text-transform:uppercase; letter-spacing:0.06em; }
+</style>
+</head>
+<body>
+  <div class="card-row" style="gap:10px;">
+    <div class="chip" style="flex:1"><div class="dot" style="background:var(--positive)"></div><span class="meta"><b>Positive</b>senior-300</span></div>
+    <div class="chip" style="flex:1"><div class="dot" style="background:var(--negative)"></div><span class="meta"><b>Negative</b>loss-400</span></div>
+    <div class="chip" style="flex:1"><div class="dot" style="background:var(--warning)"></div><span class="meta"><b>Warning</b>junior-300</span></div>
+    <div class="chip" style="flex:1"><div class="dot" style="background:var(--info)"></div><span class="meta"><b>Info</b>senior-300</span></div>
+  </div>
+  <div class="label" style="margin:16px 0 9px;">Money-chart lines</div>
+  <div class="row2">
+    <div class="legend"><span class="ln" style="border-top-color:var(--line-hodl); border-top-style:dashed;"></span><span class="tx">HODL<small>reference</small></span></div>
+    <div class="legend"><span class="ln" style="border-top-color:var(--line-lp);"></span><span class="tx">Vanilla LP<small>bleeds</small></span></div>
+    <div class="legend"><span class="ln" style="border-top-color:var(--line-senior);"></span><span class="tx">Bedrock<small>calm coupon</small></span></div>
+    <div class="legend"><span class="ln" style="border-top-color:var(--line-junior);"></span><span class="tx">Sediment<small>levered</small></span></div>
+  </div>
+</body>
+</html>

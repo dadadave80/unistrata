@@ -1,0 +1,60 @@
+/* ============================================================
+   Strata — Base layer
+   Minimal reset + element defaults that wire the tokens onto
+   real elements. Kept out of styles.css so that file stays a
+   pure @import manifest.
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'kern' 1;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+}
+
+p { margin: 0; }
+
+a { color: var(--senior-300); text-decoration: none; }
+a:hover { color: var(--senior-200); }
+
+/* Every number is tabular & lining by default when wrapped in mono. */
+code, kbd, samp, .mono {
+  font-family: var(--font-mono);
+  font-feature-settings: var(--data-feature-settings);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Selection picks up the senior accent. */
+::selection { background: color-mix(in oklab, var(--senior-400) 32%, transparent); }
+
+/* Focus ring — instrument-panel crisp, not glowy. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--senior-300);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* Thin mineral scrollbars. */
+* { scrollbar-width: thin; scrollbar-color: var(--ink-600) transparent; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb { background: var(--ink-600); border-radius: var(--radius-full); border: 2px solid transparent; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--ink-550); }

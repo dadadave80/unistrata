@@ -1,0 +1,27 @@
+<!-- @dsCard group="Spacing" viewport="700x180" name="Motion" subtitle="Crisp UI under 250ms; one cinematic 1s settlement sweep." -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<link rel="stylesheet" href="../_card.css">
+<style>
+  .track { position:relative; height:34px; background:var(--surface-card); border-radius:var(--radius-md); box-shadow:var(--elev-1); overflow:hidden; }
+  .track .head { position:absolute; top:0; bottom:0; width:2px; background:var(--senior-300); box-shadow:0 0 12px 1px var(--senior-400); }
+  .track.t1 .head { animation: sweep var(--dur-fast) var(--ease-out) infinite alternate; }
+  .track.t2 .head { animation: sweep var(--dur-base) var(--ease-out) infinite alternate; }
+  .track.t3 .head { background:var(--paper-100); box-shadow:var(--glow-settle); animation: sweep var(--dur-settle) var(--ease-settle) infinite alternate; }
+  @keyframes sweep { from { left:3px; } to { left: calc(100% - 5px); } }
+  .lab { font-family:var(--font-mono); font-size:10px; color:var(--text-tertiary); margin-bottom:5px; }
+  .col { flex:1; }
+</style>
+</head>
+<body>
+  <div class="card-row" style="gap:16px;">
+    <div class="col"><div class="lab">fast · 140ms · hover</div><div class="track t1"><span class="head"></span></div></div>
+    <div class="col"><div class="lab">base · 200ms · UI</div><div class="track t2"><span class="head"></span></div></div>
+    <div class="col"><div class="lab" style="color:var(--text-secondary)">settle · 1000ms · the sweep</div><div class="track t3"><span class="head"></span></div></div>
+  </div>
+  <div class="label" style="margin-top:18px;">ease-out <code class="mono" style="color:var(--text-secondary)">cubic-bezier(.16,1,.3,1)</code> &nbsp;·&nbsp; numbers tick, never fade &nbsp;·&nbsp; reduced-motion drops movement</div>
+</body>
+</html>

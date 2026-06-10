@@ -1,0 +1,30 @@
+<!-- @dsCard group="Spacing" viewport="700x180" name="Radii & elevation" subtitle="Crisp engineered radii; elevation from stroke + faint lift." -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<link rel="stylesheet" href="../_card.css">
+<style>
+  .box { width:104px; height:74px; background:var(--surface-card); display:flex; align-items:flex-end; padding:8px; }
+  .box .k { font-family:var(--font-mono); font-size:10px; color:var(--text-tertiary); }
+</style>
+</head>
+<body>
+  <div class="label" style="margin-bottom:9px;">Radii</div>
+  <div class="card-row" style="gap:12px;">
+    <div class="box" style="border-radius:var(--radius-xs); box-shadow:var(--elev-1);"><span class="k">xs · 3</span></div>
+    <div class="box" style="border-radius:var(--radius-sm); box-shadow:var(--elev-1);"><span class="k">sm · 5</span></div>
+    <div class="box" style="border-radius:var(--radius-md); box-shadow:var(--elev-1);"><span class="k">md · 7</span></div>
+    <div class="box" style="border-radius:var(--radius-lg); box-shadow:var(--elev-1);"><span class="k">lg · 11</span></div>
+    <div class="box" style="border-radius:var(--radius-xl); box-shadow:var(--elev-1);"><span class="k">xl · 16</span></div>
+  </div>
+  <div class="label" style="margin:16px 0 9px;">Elevation</div>
+  <div class="card-row" style="gap:18px;">
+    <div class="box" style="border-radius:var(--radius-md); box-shadow:var(--elev-1);"><span class="k">elev-1</span></div>
+    <div class="box" style="border-radius:var(--radius-md); box-shadow:var(--elev-2);"><span class="k">elev-2</span></div>
+    <div class="box" style="border-radius:var(--radius-md); box-shadow:var(--elev-3);"><span class="k">elev-3</span></div>
+    <div class="box" style="border-radius:var(--radius-md); box-shadow:var(--glow-senior), var(--elev-2); background:var(--senior-900);"><span class="k" style="color:var(--senior-200)">glow</span></div>
+  </div>
+</body>
+</html>

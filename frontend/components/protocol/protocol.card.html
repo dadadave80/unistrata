@@ -1,0 +1,54 @@
+<!-- @dsCard group="Components" viewport="700x520" name="Protocol — TrancheCard · Epoch · EventFeed" subtitle="The instrument-specific building blocks." -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  body { background: var(--bg-app); padding: 22px 24px; margin: 0; }
+  .lbl { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); margin: 0 0 9px; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .two { display: grid; grid-template-columns: 1fr 1.25fr; gap: 18px; align-items: start; margin-top: 22px; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script>window.StrataDesignSystem_8a0ec2||document.write('<scr'+'ipt src="../../ds-runtime.js"><\/scr'+'ipt>');</script>
+  <script type="text/babel">
+    const { TrancheCard, EpochCountdown, EventFeed, Panel } = window.StrataDesignSystem_8a0ec2;
+    const events = [
+      { time:'2d 04:11', kind:'emergency', epoch:47, message:'Vol spike detected on Reactive Network → <span class="em">emergencySettle()</span> executed, epoch 47 closed early', tx:'0x7a3f…e201', chain:'Reactive ⇄ Ethereum' },
+      { time:'08:00:02', kind:'settle', epoch:46, message:'Waterfall ran → coupon <span class="fn">accrued to Bedrock</span>, Sediment took residual fees', tx:'0x1c9d…0a4f', chain:'Ethereum' },
+      { time:'00:00:01', kind:'reactive', epoch:46, message:'Reactive callback armed → watching σ² against 0.85%/day trigger', tx:'0x44b2…9fe3', chain:'Reactive Network' },
+      { time:'16:00:00', kind:'settle', epoch:45, message:'Waterfall ran → Bedrock coupon 7.0% paid in full', tx:'0xa1e7…22c8', chain:'Ethereum' },
+    ];
+    function Demo(){
+      const [sel,setSel]=React.useState('senior');
+      return (
+        <div>
+          <p className="lbl">TrancheCard — calm vs alive</p>
+          <div className="cards">
+            <TrancheCard tranche="senior" apr="7.2%" selected={sel==='senior'} onSelect={()=>setSel('senior')}
+              capacityPct={81}
+              rows={[{label:'Coverage',value:'$1.84M below you',tone:'senior'},{label:'Capacity left',value:'$310K'}]}
+              footnote="Protected from impermanent loss until Sediment is exhausted." />
+            <TrancheCard tranche="junior" apr="23.4%" aprLabel="trailing 30d" selected={sel==='junior'} onSelect={()=>setSel('junior')}
+              capacityPct={62}
+              rows={[{label:'Risk premium',value:'+4.1%',tone:'junior'},{label:'Excess fees',value:'all retained'}]}
+              footnote="You absorb losses first. In exchange you keep all excess fees." />
+          </div>
+          <div className="two">
+            <Panel eyebrow="Epoch clock" title="Settlement"><EpochCountdown epoch={47} secondsLeft={11529} running={false} /></Panel>
+            <EventFeed events={events} maxHeight={300} />
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>

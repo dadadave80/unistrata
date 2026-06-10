@@ -1,0 +1,72 @@
+import React from 'react';
+
+const CSS = `
+.st-feed { font-family: var(--font-mono); background: var(--ink-1000);
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); overflow: hidden; }
+.st-feed__bar { display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 14px; border-bottom: 1px solid var(--hairline); background: var(--ink-950); }
+.st-feed__title { display: flex; align-items: center; gap: 9px; font-size: 11px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+.st-feed__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--senior-400);
+  box-shadow: 0 0 0 0 var(--senior-400); animation: st-feed-pulse 2000ms var(--ease-out) infinite; }
+@keyframes st-feed-pulse { 0%{ box-shadow:0 0 0 0 color-mix(in oklab,var(--senior-400) 55%,transparent);} 70%{ box-shadow:0 0 0 6px transparent;} 100%{ box-shadow:0 0 0 0 transparent;} }
+.st-feed__meta { font-size: 10px; color: var(--text-tertiary); letter-spacing: 0.04em; }
+.st-feed__list { max-height: var(--st-feed-h, none); overflow: auto; }
+.st-feed__row { display: grid; grid-template-columns: 84px 14px 1fr; gap: 10px;
+  padding: 11px 14px; border-bottom: 1px solid var(--hairline); align-items: start; }
+.st-feed__row:last-child { border-bottom: none; }
+.st-feed__row:hover { background: rgba(255,255,255,0.015); }
+.st-feed__ts { font-size: 11px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; line-height: 1.5; white-space: nowrap; }
+.st-feed__mark { width: 8px; height: 8px; border-radius: 2px; margin-top: 5px; }
+.st-feed__mark--settle { background: var(--senior-400); }
+.st-feed__mark--reactive { background: var(--senior-300); box-shadow: 0 0 8px 0 var(--senior-400); }
+.st-feed__mark--emergency { background: var(--loss-400); box-shadow: 0 0 8px 0 var(--loss-500); }
+.st-feed__mark--info { background: var(--ink-550); }
+.st-feed__body { min-width: 0; }
+.st-feed__msg { font-size: 12.5px; color: var(--text-primary); line-height: 1.5; }
+.st-feed__msg .fn { color: var(--senior-200); }
+.st-feed__msg .em { color: var(--loss-300); }
+.st-feed__sub { font-size: 11px; color: var(--text-tertiary); margin-top: 3px; line-height: 1.5;
+  display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.st-feed__tx { color: var(--senior-300); text-decoration: none; border-bottom: 1px dotted var(--senior-700); }
+.st-feed__tx:hover { color: var(--senior-200); }
+.st-feed__chain { color: var(--text-tertiary); }
+@media (prefers-reduced-motion: reduce) { .st-feed__dot { animation: none; } }
+`;
+
+function useCSS(id, css){ React.useEffect(()=>{ if(document.getElementById(id))return; const e=document.createElement('style'); e.id=id; e.textContent=css; document.head.appendChild(e);},[id,css]); }
+
+const MARK = { settle: 'settle', reactive: 'reactive', emergency: 'emergency', info: 'info' };
+
+export function EventFeed({
+  events = [], title = 'Reactive Network · automation feed', maxHeight,
+  explorerBase = '#', className = '', ...rest
+}) {
+  useCSS('st-feed-css', CSS);
+  return (
+    <div className={`st-feed ${className}`} style={maxHeight ? { ['--st-feed-h']: maxHeight + 'px' } : null} {...rest}>
+      <div className="st-feed__bar">
+        <span className="st-feed__title"><span className="st-feed__dot" />{title}</span>
+        <span className="st-feed__meta">no keepers · no bots</span>
+      </div>
+      <div className="st-feed__list">
+        {events.map((e, i) => (
+          <div className="st-feed__row" key={i}>
+            <span className="st-feed__ts">{e.time}</span>
+            <span className={`st-feed__mark st-feed__mark--${MARK[e.kind] || 'info'}`} />
+            <div className="st-feed__body">
+              <div className="st-feed__msg" dangerouslySetInnerHTML={{ __html: e.message }} />
+              {(e.tx || e.chain || e.epoch != null) && (
+                <div className="st-feed__sub">
+                  {e.chain && <span className="st-feed__chain">{e.chain}</span>}
+                  {e.epoch != null && <span className="st-feed__chain">epoch {e.epoch}</span>}
+                  {e.tx && <a className="st-feed__tx" href={explorerBase} onClick={ev => ev.preventDefault()}>{e.tx} ↗</a>}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

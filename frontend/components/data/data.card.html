@@ -1,0 +1,73 @@
+<!-- @dsCard group="Components" viewport="700x560" name="Data — StrataCore · Gauge · MoneyChart" subtitle="The signature visualization and its instruments." -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  body { background: var(--bg-app); padding: 22px 24px; margin: 0; }
+  .lbl { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); margin: 0 0 9px; }
+  .grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
+  .stack { display: flex; flex-direction: column; gap: 18px; }
+  .gaugewrap { display: flex; align-items: center; gap: 18px; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script>window.StrataDesignSystem_8a0ec2||document.write('<scr'+'ipt src="../../ds-runtime.js"><\/scr'+'ipt>');</script>
+  <script type="text/babel">
+    const { StrataCore, Gauge, MoneyChart, NumberTicker, Stat, Button } = window.StrataDesignSystem_8a0ec2;
+    function gen(seed, drop) {
+      const price=[], hodl=[], lp=[], senior=[], junior=[]; let p=100;
+      for (let i=0;i<60;i++){
+        const swing = Math.sin(i/6+seed)*4 + (i>30? -drop*(i-30)/30:0);
+        p = 100 + swing + Math.sin(i/2)*1.5;
+        price.push(p);
+        hodl.push(100 + swing*0.4);
+        lp.push(100 + swing*0.4 - Math.abs(swing)*0.5 - i*0.05);
+        senior.push(100 + i*0.12);
+        junior.push(100 + i*0.30 - Math.abs(swing)*0.3 + (i>30?-drop*(i-30)/45:0));
+      }
+      return { price, series:{hodl,lp,senior,junior} };
+    }
+    function Demo(){
+      const [sweep,setSweep]=React.useState(0);
+      const [jr,setJr]=React.useState(780000);
+      const d = React.useMemo(()=>gen(1,18),[]);
+      return (
+        <div>
+          <div className="grid">
+            <div>
+              <p className="lbl">StrataCore — capital structure</p>
+              <StrataCore seniorNav={1620000} juniorNav={jr} scaleMax={2600000} height={300} sweepKey={sweep} />
+              <div style={{display:'flex',gap:8,marginTop:12}}>
+                <Button size="sm" variant="senior" onClick={()=>setSweep(k=>k+1)}>Run settlement</Button>
+                <Button size="sm" variant="secondary" onClick={()=>setJr(j=> j>500000?520000:780000)}>Apply impairment</Button>
+              </div>
+            </div>
+            <div className="stack">
+              <div>
+                <p className="lbl">Realized-vol gauge</p>
+                <div className="gaugewrap">
+                  <Gauge value={0.41} min={0} max={1} size={150} valueText="0.41" unit="σ² %/day" tone="senior"
+                    thresholds={[{at:0.6,color:'var(--junior-400)'},{at:0.85,color:'var(--loss-400)'}]} />
+                  <Stat label="EWMA" value={<NumberTicker value={0.47} decimals={2} />} unit="rising" deltaDir="up" delta="+0.06" size="sm" />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style={{marginTop:22}}>
+            <p className="lbl">MoneyChart — HODL · LP · Bedrock · Sediment over a 40% swing</p>
+            <MoneyChart price={d.price} series={d.series} progress={1} height={210} />
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>
