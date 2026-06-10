@@ -133,8 +133,13 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
       `toWad` (USDC6 ×1e12 exact). Stateful `totalAssets(manager,…)` orchestrator **deferred to hook
       integration** (reads live PoolManager slot0/position/fee-growth; critic's fee/idle double-count
       concerns resolve there with a real pool).
-- [ ] StrataHook vault: deposit (both tranches), share mint at NAV, hook-owned full-range liquidity
-      via `unlock`, withdrawal queue, NAV views, attachment-point cap, dead-shares guard.
+- [~] `StrataHook` — **foundation done** (TDD, **6 hook tests** vs local PoolManager): construction +
+      tranche tokens (sSTR/jSTR), `getHookPermissions` (afterInitialize|afterSwap|beforeAddLiquidity),
+      **single-pool binding** + variance seeding in `afterInitialize`, **external-LP guard** in
+      `beforeAddLiquidity`. `Config` struct exposes all governance dials.
+  - [ ] deposit (both tranches) → `unlock` → `modifyLiquidity` (full-range add) → settle/take → mint at NAV
+  - [ ] attachment-point cap (θ_max), dead-shares guard, NAV views (`NavLib.totalAssets`), withdrawal queue
+  - [ ] `afterSwap` variance wiring (`VarianceLib.observe` + `StrataObservation` event + fee-growth snapshot)
 
 > **Milestone — pure-math foundation complete.** All 3 §4 libraries done & TDD-covered (Waterfall 21,
 > Variance 20, Nav 14) + TrancheToken (6). 69 tests green. Next: the `StrataHook` that composes them
