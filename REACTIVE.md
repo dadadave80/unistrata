@@ -4,15 +4,24 @@ Strata's epoch settlement and volatility circuit breaker run with **zero off-cha
 a single Reactive Smart Contract (`StrataReactive`) on Reactive Lasna drives the origin-chain
 `StrataHook`. No keepers, no bots, no Gelato/Chainlink Automation.
 
-```
-  Unichain Sepolia (origin, 1301)                 Reactive Lasna (5318007)
-  ┌───────────────────────────┐                   ┌──────────────────────────┐
-  │  StrataHook               │  StrataObservation │  StrataReactive (RSC)    │
-  │  (AbstractCallback)       │ ─────────────────► │  react():                │
-  │                           │                    │   • CRON tick → heartbeat│
-  │  settleEpoch(address) ◄───┼──── Callback ──────┤   • varAcc spike → emerg.│
-  │  emergencySettle(address)◄┼──── Callback ──────┤                          │
-  └───────────────────────────┘   (callback proxy) └──────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph origin["Unichain Sepolia · origin (1301)"]
+        hook["StrataHook<br/>(AbstractCallback)"]
+        proxy["Reactive callback proxy"]
+    end
+
+    subgraph lasna["Reactive Lasna (5318007)"]
+        cron(["CRON tick"])
+        rsc["StrataReactive (RSC)<br/>react()"]
+    end
+
+    hook -- "StrataObservation(blockTickDelta, varAcc)" --> rsc
+    cron -- "every tick" --> rsc
+    rsc -- "heartbeat: every ticksPerEpoch → Callback" --> proxy
+    rsc -- "varAcc spike → Callback" --> proxy
+    proxy -- "settleEpoch(address)" --> hook
+    proxy -- "emergencySettle(address)" --> hook
 ```
 
 ## Verified addresses (re-confirm on-chain before deploying — `cast code <addr> --rpc-url <chain>`)
