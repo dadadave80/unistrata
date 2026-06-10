@@ -50,7 +50,14 @@ stored `rvm_id` matches the callbacks the RSC originates.
 ## Deploy sequence
 
 ```bash
-# 1. Hook + pool on the origin chain (Unichain Sepolia). Mines the flag-encoded address.
+# 0. Demo pool tokens — tWETH (18 dec) + tUSDC (6 dec), minted to your deployer.
+forge script script/strata/00_DeployMockTokens.s.sol \
+  --rpc-url $UNICHAIN_SEPOLIA_RPC --account $ACCOUNT --sender $SENDER --broadcast
+# → note TOKEN_WETH and TOKEN_USDC from the logs
+
+# 1. Hook + pool on the origin chain. Mines the flag address; DERIVES decimals/numéraire/init-price
+#    from the token addresses (v4 sorts by address) at 1 tWETH = TARGET_PRICE tUSDC (default 3000).
+TOKEN_WETH=0x... TOKEN_USDC=0x... TARGET_PRICE=3000 \
 forge script script/strata/01_DeployStrata.s.sol \
   --rpc-url $UNICHAIN_SEPOLIA_RPC --account $ACCOUNT --sender $SENDER --broadcast
 # → note STRATA_HOOK

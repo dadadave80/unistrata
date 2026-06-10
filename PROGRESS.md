@@ -194,8 +194,14 @@ Confirm desired event taxonomy at Phase 3 review.
 - [x] **`StrataReactive` RSC** — CRON heartbeat (counter, once per epoch) + variance-spike circuit
       breaker (`emergencySettle`), emits cross-chain `Callback`s; subscriptions in constructor.
       TDD, **6 react() tests** (local via vm-detection).
-- [x] **Deploy/fund/subscribe scripts** (`script/strata/01_DeployStrata`, `02_DeployReactive`,
-      `03_FundAndSubscribe`) + **`REACTIVE.md` runbook** (verified addresses, sequence, funding, demo capture).
+- [x] **Deploy/fund/subscribe scripts** (`script/strata/{00_DeployMockTokens,01_DeployStrata,
+      02_DeployReactive,03_FundAndSubscribe}`) + **`REACTIVE.md` runbook** (verified addresses, sequence,
+      funding, demo capture).
+- [x] **Pool tokens decided: demo mocks tWETH (18) + tUSDC (6)**, USDC = numéraire. `DemoERC20`
+      (mintable) + `StrataDeploy` lib derives token0/token1 ordering, decimals, numéraire flag and
+      init sqrt-price (1 WETH = 3000 USDC) from the real addresses — closes the §7 decimals/ordering
+      footguns. Proven by `StrataMixedDecimals.t.sol`: a ~$12k deposit reads as ~12,000e18 WAD (a
+      decimals mis-wire would be off by ~1e12). **124 tests.**
 - [ ] **End-to-end testnet run** (user-executed): recorded 3-hop tx trail for heartbeat AND spike.
       Needs funded keys on Unichain Sepolia + Lasna. This artifact goes in the README/video.
 
