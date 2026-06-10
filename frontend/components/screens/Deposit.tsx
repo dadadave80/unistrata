@@ -74,6 +74,8 @@ export function Deposit() {
   const [amount, setAmount] = React.useState(2000);
   const [depTx, setDepTx] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
+  const [faucetBusy, setFaucetBusy] = React.useState(false);
+  const [faucetTx, setFaucetTx] = React.useState<string | null>(null);
 
   const isSenior = tranche === 'senior';
   const accent = isSenior ? 'senior' : 'junior';
@@ -81,7 +83,7 @@ export function Deposit() {
   const shares = amount / sharePrice;
 
   // live balances of the connected wallet
-  const { data: bals } = useReadContracts({
+  const { data: bals, refetch: refetchBals } = useReadContracts({
     contracts: [
       { address: TOKEN_USDC, abi: erc20Abi, functionName: 'balanceOf', args: [address ?? '0x0000000000000000000000000000000000000000'], chainId: CHAIN_ID },
       { address: TOKEN_WETH, abi: erc20Abi, functionName: 'balanceOf', args: [address ?? '0x0000000000000000000000000000000000000000'], chainId: CHAIN_ID },
@@ -90,6 +92,24 @@ export function Deposit() {
   });
   const usdcBal = bals && bals[0].status === 'success' ? Number(formatUnits(bals[0].result as bigint, 6)) : 0;
   const wethBal = bals && bals[1].status === 'success' ? Number(formatUnits(bals[1].result as bigint, 18)) : 0;
+
+  // Testnet faucet — DemoERC20.mint is permissionless, so the wallet mints to itself.
+  // Mints 10,000 tUSDC (+ tWETH so a balanced deposit actually works).
+  async function claimFaucet() {
+    if (!address) { open(); return; }
+    setFaucetBusy(true); setErr(null); setFaucetTx(null);
+    try {
+      await writeContractAsync({ address: TOKEN_USDC, abi: erc20Abi, functionName: 'mint', args: [address, parseUnits('10000', 6)], chainId: CHAIN_ID });
+      const tx = await writeContractAsync({ address: TOKEN_WETH, abi: erc20Abi, functionName: 'mint', args: [address, parseUnits('4', 18)], chainId: CHAIN_ID });
+      setFaucetTx(tx);
+      await refetchBals();
+    } catch (e: unknown) {
+      const m = e instanceof Error ? e.message : String(e);
+      setErr(m.length > 140 ? m.slice(0, 140) + '…' : m);
+    } finally {
+      setFaucetBusy(false);
+    }
+  }
 
   async function approveAndDeposit() {
     setErr(null); setDepTx(null);
@@ -121,16 +141,21 @@ export function Deposit() {
       </div>
 
       <div style={{ marginBottom: 'var(--space-7)' }}>
-        <Panel eyebrow="Wallet" title="Connect to deposit"
+        <Panel eyebrow="Testnet faucet" title="Fund your test wallet"
           actions={isConnected
-            ? <span className="dp__wallet"><span className="d" />{address ? shortAddr(address) : ''}<button title="Manage" onClick={() => open()}><LogOut size={14} /></button></span>
+            ? <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                <span className="dp__wallet"><span className="d" />{address ? shortAddr(address) : ''}<button title="Manage" onClick={() => open()}><LogOut size={14} /></button></span>
+                <Button variant="secondary" size="sm" disabled={faucetBusy} onClick={claimFaucet}>{faucetBusy ? 'Minting…' : 'Claim test tokens'}</Button>
+              </div>
             : <Button variant="secondary" size="sm" onClick={() => open()}>Connect wallet</Button>}>
           {isConnected ? (
             <div className="dp__balrow">
               <Badge variant="neutral" size="sm">Unichain Sepolia</Badge>
               <div className="dp__bal"><span className="k">tUSDC</span><span className="v"><NumberTicker value={usdcBal} decimals={0} /></span></div>
               <div className="dp__bal"><span className="k">tWETH</span><span className="v"><NumberTicker value={wethBal} decimals={3} /></span></div>
-              <p className="dp__helper">Depositing approves tUSDC + tWETH to the hook, then mints {isSenior ? 'BEDR' : 'SEDI'} at NAV. You need test tokens in this wallet.</p>
+              {faucetTx
+                ? <span className="dp__deptx">Minted 10,000 tUSDC + 4 tWETH · <a href={`https://sepolia.uniscan.xyz/tx/${faucetTx}`} target="_blank" rel="noreferrer">{shortAddr(faucetTx)} ↗</a></span>
+                : <p className="dp__helper">Claim mints 10,000 tUSDC + 4 tWETH to your wallet (DemoERC20, permissionless). Then deposit to a layer below.</p>}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', alignItems: 'flex-start' }}>
