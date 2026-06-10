@@ -27,6 +27,9 @@ contract DeployReactiveScript is Script {
     function run() public {
         address strataHook = vm.envAddress("STRATA_HOOK");
 
+        // The constructor subscribes (try/catch) — one deploy tx deploys AND subscribes on-chain.
+        // Locally the 0x64 precompile is absent so a SubscribeFailed event fires here (harmless);
+        // on the real node both subscriptions take effect.
         vm.startBroadcast();
         StrataReactive rsc = new StrataReactive(
             ORIGIN_CHAIN_ID, strataHook, CRON_TOPIC, TICKS_PER_EPOCH, SPIKE_THRESHOLD, CALLBACK_GAS_LIMIT

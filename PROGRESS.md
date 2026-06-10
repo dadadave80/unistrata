@@ -8,6 +8,24 @@ deviations from the plan (with reasons). Newest status at the top of each phase.
 
 ---
 
+## Live testnet deployment (Phase 4 — verified on-chain 2026-06-11)
+
+Full stack deployed AND subscribed end-to-end (addresses in `.env`; receipts under `broadcast/`):
+
+| Contract | Chain | Address |
+|---|---|---|
+| tWETH (18) | Unichain Sepolia 1301 | `0xf8075E9DE8E8D27F98D5C78Be26CEbceEd6f9A79` |
+| tUSDC (6) | Unichain Sepolia 1301 | `0x72cfA7f9DfA38975f4ed4AcF86f67D6E490a52d8` |
+| StrataHook | Unichain Sepolia 1301 | `0xBC0ca5604FBdb2d484A2169f3841e54F69649840` (deploy `0xc3e27753…`, pool init `0xbbb4d48d…`) |
+| StrataReactive | Lasna 5318007 | `0xdDB7921Eb8FA43bcdDD12597ED9068a795a418FF` (deploy `0x9b83b0a5…`) |
+
+The RSC deploy tx emitted **two `Subscribe` events** (system contract `0x…ffffff`) and **zero
+`SubscribeFailed`** → the constructor's try/catch subscribed on-chain in one broadcast: (1) CRON on
+5318007, (2) StrataObservation from the hook on **1301** — proving Unichain Sepolia is an accepted Lasna
+origin chain. Remaining: fund RSC (REACT) + hook (callback debt), then capture heartbeat + spike tx trails.
+
+---
+
 ## Deviation notes
 
 - **2026-06-10 — "Phase 0 done" memory was stale.** A prior session's memory claimed Phase 0
@@ -87,11 +105,15 @@ Fallback — ETH Sepolia (11155111): PoolManager `0xE03A1074c86CFeDd5C142C4F04F1
 PositionManager `0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4` · StateView `0xE1Dd9c3fA50EDB962E442f60DfBc432e24537E4C`.
 
 ### (3) Reactive Network testnet + callback proxy
-- **Reactive testnet:** Lasna, chainId `5318007` (RPC **`https://lasna-omni-rpc.rnk.dev/`** — the live
-  post-Omni-fork endpoint; system contract `0x…fffFfF`). Kopli deprecated 2025-07-28 — do not use.
-  **RESOLVED 2026-06-11:** `lasna-rpc.rnk.dev` is the stale pre-fork node (~360k blocks behind; `subscribe`
-  reverts `"Failure"` there); the RSC deploy simulates cleanly on `lasna-omni-rpc`. Fund the deployer on
-  the omni chain — balances do NOT carry across the fork (same chainId, diverged state).
+- **Reactive testnet:** Lasna, chainId `5318007` (RPC **`https://lasna-rpc.rnk.dev/`**; system contract
+  `0x…fffFfF`). Kopli deprecated 2025-07-28 — do not use.
+  **`subscribe()` "Failure" root cause (RESOLVED 2026-06-11):** `service.subscribe()` reverts `"Failure"`
+  during `forge script`'s local execution because reactive-lib's `SystemLib.getSystemContractImpl()` calls
+  the **node-only precompile at `0x64`**, which does NOT exist in Foundry's local EVM — so it returns empty
+  and the `require(success && ret.length==0x20)` reverts. This is a Foundry-simulation limitation, **not** a
+  contract bug or a stale node: the same call works on a real Lasna node. Fix: `StrataReactive`'s constructor
+  wraps each `subscribe` in try/catch (emitting `SubscribeFailed`) so one `forge script --broadcast` both
+  deploys AND subscribes — the catch only triggers in local sim; the broadcast tx subscribes on-chain.
 - **Callback Proxy on Unichain Sepolia (1301):** `0x9299472A6399Fd1027ebF067571Eb3e3D7837FC4` — pass to
   `AbstractCallback(_callback_sender)` and authorize for callbacks.
 - Fallback callback proxy (ETH Sepolia): `0xc9f36411C9897e7F959D99ffca2a0Ba7ee0D7bDA`.
@@ -123,8 +145,9 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
 - **On-chain address confirmation:** v4 + callback-proxy addresses are doc-sourced; verify bytecode
   (`cast code <addr> --rpc-url <chain>`) before wiring scripts. A conflicting ETH Sepolia proxy
   (`0x9b9BB25f…Cf434`) surfaced in a snippet — official table value used here; confirm before auth.
-- **Lasna RPC ambiguity RESOLVED:** use `lasna-omni-rpc.rnk.dev` (live); `lasna-rpc.rnk.dev` is stale.
-  (System-contract `0x…fffFfF` confirmed working via the omni RSC-deploy simulation.)
+- **Lasna RPC:** use `https://lasna-rpc.rnk.dev/`. (An earlier note wrongly flagged it stale in favor of
+  `lasna-omni-rpc.rnk.dev`; the real cause of the `subscribe` "Failure" was the absent `0x64` precompile in
+  Foundry's local EVM — see §(3). The try/catch constructor lets a single broadcast deploy+subscribe.)
 - **Local script drift:** `script/01_*`/`02_*` are modified vs v4-template baseline — confirm intentional.
 
 ---

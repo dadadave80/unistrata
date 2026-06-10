@@ -98,4 +98,16 @@ contract StrataReactiveTest is Test {
         log.topic_0 = uint256(keccak256("SomethingElse()"));
         assertEq(_react(log).length, 0);
     }
+
+    // subscribeAll (the owner-only on-chain retry) rejects non-owners before touching the system contract
+    function test_subscribeAll_revertsForNonOwner() public {
+        vm.prank(address(0xBEEF));
+        vm.expectRevert(StrataReactive.StrataReactive__NotOwner.selector);
+        rsc.subscribeAll();
+    }
+
+    // the owner may call subscribeAll; locally vm==true so it short-circuits to a no-op (no revert)
+    function test_subscribeAll_ownerNoopInVm() public {
+        rsc.subscribeAll(); // address(this) deployed rsc in setUp ⇒ owner; vm==true ⇒ early return
+    }
 }

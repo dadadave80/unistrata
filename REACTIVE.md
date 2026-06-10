@@ -22,7 +22,7 @@ a single Reactive Smart Contract (`StrataReactive`) on Reactive Lasna drives the
 | Origin chain | Unichain Sepolia — chainId **1301** |
 | v4 PoolManager (origin) | `0x00B036B58a818B1BC34d502D3fE730Db729e62AC` |
 | Reactive callback proxy (origin) | `0x9299472A6399Fd1027ebF067571Eb3e3D7837FC4` |
-| Reactive testnet | Lasna — chainId **5318007**, RPC `https://lasna-omni-rpc.rnk.dev/` (post-Omni-fork; **live**) |
+| Reactive testnet | Lasna — chainId **5318007**, RPC `https://lasna-rpc.rnk.dev/` |
 | Reactive system contract | `0x…fffFfF` |
 | reactive-lib | `Reactive-Network/reactive-lib@v0.2.0` |
 | CRON topic (Cron100 ≈ 12 min) | `0xb49937fb8970e19fd46d48f7e3fb00d659deac0347f79cd7cb542f0fc1503c70` |
@@ -68,7 +68,7 @@ forge script script/strata/00_DeployMockTokens.s.sol \
 # 2. RSC on Lasna (constructor registers both subscriptions = "deploy is subscribe"). Reads
 #    STRATA_HOOK from .env. → writes STRATA_REACTIVE to .env
 forge script script/strata/02_DeployReactive.s.sol \
-  --rpc-url https://lasna-omni-rpc.rnk.dev/ --account $ACCOUNT --sender $SENDER --broadcast
+  --rpc-url https://lasna-rpc.rnk.dev/ --account $ACCOUNT --sender $SENDER --broadcast
 
 # 3a. Fund the hook (destination callback contract) via the callback proxy. Reads STRATA_HOOK from .env.
 HOOK_FUNDING_WEI=50000000000000000 \
@@ -78,13 +78,34 @@ HOOK_FUNDING_WEI=50000000000000000 \
 # 3b. Top up the RSC on Lasna. Reads STRATA_REACTIVE from .env.
 RSC_FUNDING_WEI=... \
   forge script script/strata/03_FundAndSubscribe.s.sol --sig "fundReactive()" \
-  --rpc-url https://lasna-omni-rpc.rnk.dev/ --account $ACCOUNT --sender $SENDER --broadcast
+  --rpc-url https://lasna-rpc.rnk.dev/ --account $ACCOUNT --sender $SENDER --broadcast
 ```
 
 Funding model: the callback proxy fronts gas on the origin chain and bills the hook as **debt** (min
 callback gas limit 100,000); `depositTo(hook)` pre-funds and settles debt. Leave the hook funded with
 native gas or it gets **blocklisted** until the debt clears. Determine the right pre-fund amount
 empirically on testnet (no published minimum beyond the gas floor).
+
+## Live testnet deployment (Phase 4 — verified on-chain)
+
+Deployed and subscribed end-to-end (addresses also in `.env`, broadcast receipts under `broadcast/`):
+
+| Contract | Chain | Address | Deploy tx |
+|---|---|---|---|
+| tWETH (18) | Unichain Sepolia 1301 | `0xf8075E9DE8E8D27F98D5C78Be26CEbceEd6f9A79` | — |
+| tUSDC (6) | Unichain Sepolia 1301 | `0x72cfA7f9DfA38975f4ed4AcF86f67D6E490a52d8` | — |
+| StrataHook | Unichain Sepolia 1301 | `0xBC0ca5604FBdb2d484A2169f3841e54F69649840` | `0xc3e27753…1bb65` (+ pool init `0xbbb4d48d…4bcb4`) |
+| StrataReactive (RSC) | Lasna 5318007 | `0xdDB7921Eb8FA43bcdDD12597ED9068a795a418FF` | `0x9b83b0a5…71f5c` |
+
+**Subscription proof:** the StrataReactive deploy tx emitted **two `Subscribe` events** from the system
+contract `0x…ffffff` and **zero `SubscribeFailed`** — confirming the constructor's try/catch subscribed
+on-chain in the same broadcast:
+1. CRON heartbeat — subscriber `0xddb792…`, chainId `5318007`, contract `0x…ffffff` (the service);
+2. StrataObservation — subscriber `0xddb792…`, chainId `1301`, contract `0xbc0ca5…` (the hook).
+
+The accepted cross-chain subscription to chainId `1301` confirms **Unichain Sepolia is a supported origin
+chain** for Lasna subscriptions. Remaining for the demo: fund the RSC (REACT) + the hook (callback debt),
+then capture the heartbeat and spike tx trails below.
 
 ## Demo capture (Phase 4 acceptance — tx hashes for the README/video)
 
@@ -97,10 +118,25 @@ empirically on testnet (no published minimum beyond the gas floor).
 Record the three-hop tx trail for each. Use `keys` via Foundry's encrypted keystore (`--account`), never
 plaintext private keys.
 
+## "Deploy is subscribe" — and why `forge script` shows a failed subscribe locally
+
+`StrataReactive`'s **constructor** registers both subscriptions, so the single `02_DeployReactive`
+broadcast deploys AND subscribes — no separate `cast send`. Each `service.subscribe()` is wrapped in
+try/catch: on a caught revert it emits `SubscribeFailed(chainId, contractAddr, topic0)`.
+
+You **will** see `SubscribeFailed` in the local-simulation trace, and that is expected. reactive-lib's
+`SystemLib.getSystemContractImpl()` calls the **node-only precompile at `0x64`**, which does not exist in
+Foundry's local EVM, so `subscribe` reverts `"Failure"` during the script's local execution. On the real
+Lasna node the precompile exists and both subscriptions take effect in the same broadcast tx.
+
+**Verify on-chain after broadcast:** check the deploy tx receipt — if a `SubscribeFailed` event was emitted
+*on-chain* (not just in the local sim), the real subscription failed; call the owner-only `subscribeAll()`
+(which does NOT swallow reverts) via `cast send` to surface the actual reason.
+
 ## Status / caveats (v1)
 
-- Contracts (hook callback auth + RSC dispatch) are **unit-tested locally** (13 tests across
-  `StrataReactiveAuth.t.sol` + `StrataReactive.t.sol`); the cross-chain end-to-end run is executed on
-  testnet with the scripts above.
+- Contracts (hook callback auth + RSC dispatch) are **unit-tested locally** (15 tests across
+  `StrataReactiveAuth.t.sol` + `StrataReactive.t.sol`, incl. the `subscribeAll` owner guard); the
+  cross-chain end-to-end run is executed on testnet with the scripts above.
 - `ticksPerEpoch` must match `epochDuration / cronPeriod`; an emergency settle resyncs the counter.
 - The heartbeat fires once per epoch (counter-based) to avoid wasting callbacks on not-yet-due ticks.
