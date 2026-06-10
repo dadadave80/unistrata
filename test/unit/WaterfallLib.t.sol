@@ -17,7 +17,7 @@ contract WaterfallLibHarness {
     }
 }
 
-/// @notice Pure-math unit tests for the senior/junior settlement waterfall + coupon pricing.
+/// @notice Pure-math unit tests for the bedrock/sediment settlement waterfall + coupon pricing.
 /// Units: all rates are WAD (1e18) APR fractions; values are WAD numéraire amounts.
 contract WaterfallLibTest is Test {
     uint256 internal constant WAD = 1e18;
@@ -80,45 +80,45 @@ contract WaterfallLibTest is Test {
     }
 
     //*//////////////////////////////////////////////////////////////////////////
-    //                              SENIOR TARGET
+    //                              BEDROCK TARGET
     //////////////////////////////////////////////////////////////////////////*//
 
     // sTarget = sPrev·(1 + r·Δt/yr) + deposits. 1000 @ 10% APR for a full year, no deposits.
-    function test_seniorTarget_fullYearAccrual() public pure {
-        uint256 s = WaterfallLib.seniorTarget(1000e18, 0.1e18, YEAR, 0);
+    function test_bedrockTarget_fullYearAccrual() public pure {
+        uint256 s = WaterfallLib.bedrockTarget(1000e18, 0.1e18, YEAR, 0);
         assertEq(s, 1100e18);
     }
 
-    function test_seniorTarget_halfYearAccrual() public pure {
-        uint256 s = WaterfallLib.seniorTarget(1000e18, 0.1e18, YEAR / 2, 0);
+    function test_bedrockTarget_halfYearAccrual() public pure {
+        uint256 s = WaterfallLib.bedrockTarget(1000e18, 0.1e18, YEAR / 2, 0);
         assertEq(s, 1050e18);
     }
 
-    // first epoch: sPrev == 0, growth 0, target = net senior deposits
-    function test_seniorTarget_firstEpoch_depositsOnly() public pure {
-        uint256 s = WaterfallLib.seniorTarget(0, 0.1e18, YEAR, 500e18);
+    // first epoch: sPrev == 0, growth 0, target = net bedrock deposits
+    function test_bedrockTarget_firstEpoch_depositsOnly() public pure {
+        uint256 s = WaterfallLib.bedrockTarget(0, 0.1e18, YEAR, 500e18);
         assertEq(s, 500e18);
     }
 
-    function test_seniorTarget_positiveNetDeposits() public pure {
-        uint256 s = WaterfallLib.seniorTarget(1000e18, 0.1e18, YEAR, 200e18);
+    function test_bedrockTarget_positiveNetDeposits() public pure {
+        uint256 s = WaterfallLib.bedrockTarget(1000e18, 0.1e18, YEAR, 200e18);
         assertEq(s, 1300e18); // 1100 + 200
     }
 
-    function test_seniorTarget_negativeNetDeposits() public pure {
-        uint256 s = WaterfallLib.seniorTarget(1000e18, 0.1e18, YEAR, -200e18);
+    function test_bedrockTarget_negativeNetDeposits() public pure {
+        uint256 s = WaterfallLib.bedrockTarget(1000e18, 0.1e18, YEAR, -200e18);
         assertEq(s, 900e18); // 1100 − 200
     }
 
     // net outflow larger than base floors at 0 (cannot go negative)
-    function test_seniorTarget_netDepositsBelowZero_floorsAtZero() public pure {
-        uint256 s = WaterfallLib.seniorTarget(100e18, 0, YEAR, -1000e18);
+    function test_bedrockTarget_netDepositsBelowZero_floorsAtZero() public pure {
+        uint256 s = WaterfallLib.bedrockTarget(100e18, 0, YEAR, -1000e18);
         assertEq(s, 0);
     }
 
-    // coupon honesty: tiny accrual rounds DOWN to 0 — never over-credits the senior
-    function test_seniorTarget_subWeiAccrual_roundsDown() public pure {
-        uint256 s = WaterfallLib.seniorTarget(1e18, 1, 1, 0); // 1e18·1·1/(1e18·yr) = 0
+    // coupon honesty: tiny accrual rounds DOWN to 0 — never over-credits the bedrock
+    function test_bedrockTarget_subWeiAccrual_roundsDown() public pure {
+        uint256 s = WaterfallLib.bedrockTarget(1e18, 1, 1, 0); // 1e18·1·1/(1e18·yr) = 0
         assertEq(s, 1e18);
     }
 
@@ -126,32 +126,32 @@ contract WaterfallLibTest is Test {
     //                            WATERFALL SPLIT
     //////////////////////////////////////////////////////////////////////////*//
 
-    // fees > coupon: senior gets target, junior keeps the surplus
-    function test_settle_feesExceedCoupon_juniorGains() public pure {
+    // fees > coupon: bedrock gets target, sediment keeps the surplus
+    function test_settle_feesExceedCoupon_sedimentGains() public pure {
         (uint256 sNew, uint256 jNew, bool impaired) = WaterfallLib.settle(1200e18, 1100e18);
         assertEq(sNew, 1100e18);
         assertEq(jNew, 100e18);
         assertFalse(impaired);
     }
 
-    // IL partial junior wipe: senior whole, junior shrinks
-    function test_settle_partialJuniorWipe() public pure {
+    // IL partial sediment wipe: bedrock whole, sediment shrinks
+    function test_settle_partialSedimentWipe() public pure {
         (uint256 sNew, uint256 jNew, bool impaired) = WaterfallLib.settle(1050e18, 1000e18);
         assertEq(sNew, 1000e18);
         assertEq(jNew, 50e18);
         assertFalse(impaired);
     }
 
-    // full junior wipe exactly at target: junior 0, senior NOT impaired (A == target)
-    function test_settle_fullJuniorWipe_notImpaired() public pure {
+    // full sediment wipe exactly at target: sediment 0, bedrock NOT impaired (A == target)
+    function test_settle_fullSedimentWipe_notImpaired() public pure {
         (uint256 sNew, uint256 jNew, bool impaired) = WaterfallLib.settle(1000e18, 1000e18);
         assertEq(sNew, 1000e18);
         assertEq(jNew, 0);
         assertFalse(impaired);
     }
 
-    // senior impairment: A < target, junior fully gone, senior takes the shortfall
-    function test_settle_seniorImpaired() public pure {
+    // bedrock impairment: A < target, sediment fully gone, bedrock takes the shortfall
+    function test_settle_bedrockImpaired() public pure {
         (uint256 sNew, uint256 jNew, bool impaired) = WaterfallLib.settle(900e18, 1000e18);
         assertEq(sNew, 900e18);
         assertEq(jNew, 0);
@@ -178,11 +178,11 @@ contract WaterfallLibTest is Test {
     }
 
     // Invariant 3 (coupon honesty): growth never exceeds the exact floored accrual.
-    function testFuzz_seniorTarget_noOverCredit(uint256 sPrev, uint256 r, uint256 dt) public pure {
+    function testFuzz_bedrockTarget_noOverCredit(uint256 sPrev, uint256 r, uint256 dt) public pure {
         sPrev = bound(sPrev, 0, 1e30);
         r = bound(r, 0, R_MAX);
         dt = bound(dt, 0, 10 * YEAR);
-        uint256 sTarget = WaterfallLib.seniorTarget(sPrev, r, dt, 0);
+        uint256 sTarget = WaterfallLib.bedrockTarget(sPrev, r, dt, 0);
         // two-step FullMath accrual (overflow-robust): floor(floor(sPrev·r/WAD)·dt/YEAR)
         uint256 exactFloored = Math.mulDiv(Math.mulDiv(sPrev, r, WAD), dt, YEAR);
         assertEq(sTarget, sPrev + exactFloored);

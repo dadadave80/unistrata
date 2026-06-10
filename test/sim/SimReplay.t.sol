@@ -11,16 +11,16 @@ import {Currency} from "v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 
-import {DemoERC20} from "../../script/strata/DemoERC20.sol";
-import {StrataDeploy} from "../../script/strata/StrataDeploy.sol";
+import {DemoERC20} from "../../script/unistrata/DemoERC20.sol";
+import {UnistrataDeploy} from "../../script/unistrata/UnistrataDeploy.sol";
 import {BaseTest} from "../utils/BaseTest.sol";
 import {SimSwapper} from "./SimSwapper.sol";
-import {StrataHook} from "src/StrataHook.sol";
 import {TrancheToken} from "src/TrancheToken.sol";
+import {UnistrataHook} from "src/UnistrataHook.sol";
 import {NavLib} from "src/libraries/NavLib.sol";
 
 /// @notice Phase-5 simulation harness: replays a JSON price path (sim/paths/<scenario>.json) as real
-/// swaps against a local Strata pool — on the demo token pair tWETH(18)/tUSDC(6) at 1 WETH = 3000 USDC,
+/// swaps against a local Unistrata pool — on the demo token pair tWETH(18)/tUSDC(6) at 1 WETH = 3000 USDC,
 /// matching the deploy setup — settles epochs on schedule, and exports per-epoch metrics to
 /// sim/out/<scenario>.json (the "money chart" data, and the Phase-6 frontend contract).
 ///
@@ -34,10 +34,10 @@ import {NavLib} from "src/libraries/NavLib.sol";
 ///        "priceWad": string,        // tUSDC per tWETH, WAD
 ///        "hodlValue": string,       // WAD numéraire (USDC) — initially-deposited tokens at current price
 ///        "vanillaLpValue": string,  // WAD — full-range position value (an untranched LP); the IL line
-///        "seniorNav": string, "juniorNav": string,
-///        "seniorNavPerShare": string, "juniorNavPerShare": string,
+///        "bedrockNav": string, "sedimentNav": string,
+///        "bedrockNavPerShare": string, "sedimentNavPerShare": string,
 ///        "realizedVarWad": string,  // WAD — sigma2Ewma
-///        "couponRateWad": string    // WAD APR — seniorRate
+///        "couponRateWad": string    // WAD APR — bedrockRate
 ///   } ] }
 /// Economic values are WAD-integer strings (frontend parses) to avoid JSON number precision loss.
 contract SimReplayTest is BaseTest {
@@ -48,7 +48,7 @@ contract SimReplayTest is BaseTest {
     DemoERC20 internal usdc;
     PoolKey internal poolKey;
     PoolId internal poolId;
-    StrataHook internal hook;
+    UnistrataHook internal hook;
     SimSwapper internal swapper;
 
     address internal alice = makeAddr("alice");
@@ -78,9 +78,9 @@ contract SimReplayTest is BaseTest {
         Currency c0;
         Currency c1;
         (c0, c1, dec0, dec1, numeraireIsToken1) =
-            StrataDeploy.orderTokens(address(weth), 18, address(usdc), 6, address(usdc));
+            UnistrataDeploy.orderTokens(address(weth), 18, address(usdc), 6, address(usdc));
 
-        StrataHook.Config memory cfg = StrataHook.Config({
+        UnistrataHook.Config memory cfg = UnistrataHook.Config({
             numeraireIsToken1: numeraireIsToken1,
             decimals0: dec0,
             decimals1: dec1,
@@ -94,14 +94,14 @@ contract SimReplayTest is BaseTest {
             lambdaSmoothing: 0.3e18,
             thetaMax: 0.75e18
         });
-        deployCodeTo("StrataHook.sol:StrataHook", abi.encode(poolManager, cfg, address(0xCA11)), HOOK_FLAGS);
-        hook = StrataHook(payable(HOOK_FLAGS));
+        deployCodeTo("UnistrataHook.sol:UnistrataHook", abi.encode(poolManager, cfg, address(0xCA11)), HOOK_FLAGS);
+        hook = UnistrataHook(payable(HOOK_FLAGS));
 
         poolKey = PoolKey(c0, c1, 3000, 60, IHooks(hook));
         poolId = poolKey.toId();
         uint160 initSqrtP = wethIsToken0
-            ? StrataDeploy.encodeSqrtPriceX96(PRICE * 1e6, 1e18)
-            : StrataDeploy.encodeSqrtPriceX96(1e18, PRICE * 1e6);
+            ? UnistrataDeploy.encodeSqrtPriceX96(PRICE * 1e6, 1e18)
+            : UnistrataDeploy.encodeSqrtPriceX96(1e18, PRICE * 1e6);
         poolManager.initialize(poolKey, initSqrtP);
         (, initTick,,) = poolManager.getSlot0(poolId);
 
@@ -111,8 +111,8 @@ contract SimReplayTest is BaseTest {
         vm.startPrank(alice);
         weth.approve(address(hook), type(uint256).max);
         usdc.approve(address(hook), type(uint256).max);
-        _deposit(false, 2e18, 6000e6); // junior: 2 WETH + 6000 USDC ≈ $12k
-        _deposit(true, 1e18, 3000e6); // senior: 1 WETH + 3000 USDC ≈ $6k (ratio 0.33 ≤ θ)
+        _deposit(false, 2e18, 6000e6); // sediment: 2 WETH + 6000 USDC ≈ $12k
+        _deposit(true, 1e18, 3000e6); // bedrock: 1 WETH + 3000 USDC ≈ $6k (ratio 0.33 ≤ θ)
         vm.stopPrank();
 
         // HODL basis = total deposited (3 WETH + 9000 USDC), in token0/token1 order
@@ -123,9 +123,9 @@ contract SimReplayTest is BaseTest {
         usdc.mint(address(swapper), 1_000_000_000e6);
     }
 
-    function _deposit(bool isSenior, uint256 wethAmt, uint256 usdcAmt) internal {
+    function _deposit(bool isBedrock, uint256 wethAmt, uint256 usdcAmt) internal {
         (uint256 a0, uint256 a1) = wethIsToken0 ? (wethAmt, usdcAmt) : (usdcAmt, wethAmt);
-        hook.deposit(isSenior, a0, a1);
+        hook.deposit(isBedrock, a0, a1);
     }
 
     function test_sim_calm() public {
@@ -145,12 +145,12 @@ contract SimReplayTest is BaseTest {
         int256[] memory ticks = vm.parseJsonIntArray(json, ".ticks");
         uint256 stepsPerEpoch = vm.parseJsonUint(json, ".stepsPerEpoch");
 
-        console2.log("=== Strata sim:", scenario, "(tWETH/tUSDC @ 3000) ===");
-        console2.log("epoch | hodl | vanillaLP | senior | junior  (USDC, WAD/1e18)");
+        console2.log("=== Unistrata sim:", scenario, "(tWETH/tUSDC @ 3000) ===");
+        console2.log("epoch | hodl | vanillaLP | bedrock | sediment  (USDC, WAD/1e18)");
 
         string memory epochs = "";
         uint256 epochCount;
-        uint256 prevSenior = hook.seniorNav();
+        uint256 prevBedrock = hook.bedrockNav();
         for (uint256 i; i < ticks.length; ++i) {
             vm.roll(block.number + 1);
             // path tick = offset from the init (3000) tick; dir flips so negative = WETH crash
@@ -161,10 +161,10 @@ contract SimReplayTest is BaseTest {
                 vm.warp(block.timestamp + 1 days + 1 hours + 1);
                 hook.settleEpoch();
 
-                uint256 s = hook.seniorNav();
-                assertApproxEqAbs(s + hook.juniorNav(), hook.totalAssets(), 1e12, "conservation");
-                if (hook.juniorNav() > 0) assertGe(s, prevSenior, "senior protected while junior has coverage");
-                prevSenior = s;
+                uint256 s = hook.bedrockNav();
+                assertApproxEqAbs(s + hook.sedimentNav(), hook.totalAssets(), 1e12, "conservation");
+                if (hook.sedimentNav() > 0) assertGe(s, prevBedrock, "bedrock protected while sediment has coverage");
+                prevBedrock = s;
 
                 string memory e = _epochJson(epochCount, target);
                 epochs = epochCount == 0 ? e : string.concat(epochs, ",", e);
@@ -213,18 +213,18 @@ contract SimReplayTest is BaseTest {
             '"'
         );
         string memory b = string.concat(
-            ',"seniorNav":"',
-            vm.toString(hook.seniorNav()),
-            '","juniorNav":"',
-            vm.toString(hook.juniorNav()),
-            '","seniorNavPerShare":"',
-            vm.toString(_nps(hook.senior(), hook.seniorNav())),
-            '","juniorNavPerShare":"',
-            vm.toString(_nps(hook.junior(), hook.juniorNav())),
+            ',"bedrockNav":"',
+            vm.toString(hook.bedrockNav()),
+            '","sedimentNav":"',
+            vm.toString(hook.sedimentNav()),
+            '","bedrockNavPerShare":"',
+            vm.toString(_nps(hook.bedrock(), hook.bedrockNav())),
+            '","sedimentNavPerShare":"',
+            vm.toString(_nps(hook.sediment(), hook.sedimentNav())),
             '","realizedVarWad":"',
             vm.toString(hook.sigma2Ewma()),
             '","couponRateWad":"',
-            vm.toString(hook.seniorRate()),
+            vm.toString(hook.bedrockRate()),
             '"}'
         );
         return string.concat(a, b);
@@ -239,7 +239,7 @@ contract SimReplayTest is BaseTest {
                 " | ",
                 vm.toString(hook.totalAssets() / 1e18)
             ),
-            string.concat(" | ", vm.toString(hook.seniorNav() / 1e18), " | ", vm.toString(hook.juniorNav() / 1e18))
+            string.concat(" | ", vm.toString(hook.bedrockNav() / 1e18), " | ", vm.toString(hook.sedimentNav() / 1e18))
         );
     }
 }

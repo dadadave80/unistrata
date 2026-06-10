@@ -7,21 +7,21 @@ import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 
-import {StrataHook} from "src/StrataHook.sol";
+import {UnistrataHook} from "src/UnistrataHook.sol";
 
 /// @notice Stateful-invariant handler: random deposits, swaps, and settlements. Conservation and
 /// seniority are asserted as post-settle conditions here; stateless invariants live in the test.
-contract StrataHandler is Test {
-    StrataHook public hook;
+contract UnistrataHandler is Test {
+    UnistrataHook public hook;
     PoolKey internal poolKey;
     IUniswapV4Router04 internal swapRouter;
     Currency internal c0;
     Currency internal c1;
 
     uint256 public settleCount;
-    uint256 public ghostLastSeniorNps; // senior NAV/share at the previous settlement
+    uint256 public ghostLastBedrockNps; // bedrock NAV/share at the previous settlement
 
-    constructor(StrataHook _hook, PoolKey memory _poolKey, IUniswapV4Router04 _router, Currency _c0, Currency _c1) {
+    constructor(UnistrataHook _hook, PoolKey memory _poolKey, IUniswapV4Router04 _router, Currency _c0, Currency _c1) {
         hook = _hook;
         poolKey = _poolKey;
         swapRouter = _router;
@@ -36,14 +36,14 @@ contract StrataHandler is Test {
         MockERC20(Currency.unwrap(c1)).approve(address(swapRouter), type(uint256).max);
     }
 
-    function depositJunior(uint256 amt) public {
+    function depositSediment(uint256 amt) public {
         amt = bound(amt, 1e18, 5_000e18);
         try hook.deposit(false, amt, amt) {} catch {}
     }
 
-    function depositSenior(uint256 amt) public {
-        if (hook.juniorNav() == 0) return; // senior needs junior coverage
-        uint256 cap = hook.seniorCapacityRemaining();
+    function depositBedrock(uint256 amt) public {
+        if (hook.sedimentNav() == 0) return; // bedrock needs sediment coverage
+        uint256 cap = hook.bedrockCapacityRemaining();
         if (cap < 2e18) return;
         amt = bound(amt, 1e18, cap / 2 + 1e18); // stay under the attachment cap (value ≈ 2·amt)
         try hook.deposit(true, amt, amt) {} catch {}
@@ -64,15 +64,15 @@ contract StrataHandler is Test {
         try hook.settleEpoch() {
             settleCount++;
             // post-settle conservation (inv. 1): tranche NAVs sum to marked assets within dust
-            assertApproxEqAbs(hook.seniorNav() + hook.juniorNav(), hook.totalAssets(), 1e7, "conservation");
-            // post-settle seniority (inv. 2): senior NAV/share non-decreasing while junior has coverage
-            uint256 sSupply = hook.senior().totalSupply();
-            if (sSupply > 0 && hook.juniorNav() > 0) {
-                uint256 nps = hook.seniorNav() * 1e18 / sSupply;
-                if (ghostLastSeniorNps != 0) {
-                    assertGe(nps + 2, ghostLastSeniorNps, "seniority"); // ≤2 wei rounding slack
+            assertApproxEqAbs(hook.bedrockNav() + hook.sedimentNav(), hook.totalAssets(), 1e7, "conservation");
+            // post-settle seniority (inv. 2): bedrock NAV/share non-decreasing while sediment has coverage
+            uint256 sSupply = hook.bedrock().totalSupply();
+            if (sSupply > 0 && hook.sedimentNav() > 0) {
+                uint256 nps = hook.bedrockNav() * 1e18 / sSupply;
+                if (ghostLastBedrockNps != 0) {
+                    assertGe(nps + 2, ghostLastBedrockNps, "seniority"); // ≤2 wei rounding slack
                 }
-                ghostLastSeniorNps = nps;
+                ghostLastBedrockNps = nps;
             }
         } catch {}
     }

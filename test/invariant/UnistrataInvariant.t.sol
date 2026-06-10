@@ -11,20 +11,20 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {Constants} from "v4-core/test/utils/Constants.sol";
 
 import {BaseTest} from "../utils/BaseTest.sol";
-import {StrataHandler} from "./StrataHandler.sol";
-import {StrataHook} from "src/StrataHook.sol";
+import {UnistrataHandler} from "./UnistrataHandler.sol";
+import {UnistrataHook} from "src/UnistrataHook.sol";
 
 /// @notice Stateful invariant suite (brief §6). Conservation (1) and seniority (2) are checked
 /// post-settle in the handler; the always-true invariants live here.
-contract StrataInvariantTest is BaseTest {
+contract UnistrataInvariantTest is BaseTest {
     using PoolIdLibrary for PoolKey;
 
     Currency internal currency0;
     Currency internal currency1;
     PoolKey internal poolKey;
     PoolId internal poolId;
-    StrataHook internal hook;
-    StrataHandler internal handler;
+    UnistrataHook internal hook;
+    UnistrataHandler internal handler;
 
     uint256 internal startBlock;
     uint24 internal constant DCAP = 1000;
@@ -33,8 +33,8 @@ contract StrataInvariantTest is BaseTest {
         uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x5554 << 144)
     );
 
-    function _cfg() internal pure returns (StrataHook.Config memory) {
-        return StrataHook.Config({
+    function _cfg() internal pure returns (UnistrataHook.Config memory) {
+        return UnistrataHook.Config({
             numeraireIsToken1: true,
             decimals0: 18,
             decimals1: 18,
@@ -53,26 +53,26 @@ contract StrataInvariantTest is BaseTest {
     function setUp() public {
         deployArtifactsAndLabel();
         (currency0, currency1) = deployCurrencyPair();
-        deployCodeTo("StrataHook.sol:StrataHook", abi.encode(poolManager, _cfg(), address(0xCA11)), HOOK_FLAGS);
-        hook = StrataHook(payable(HOOK_FLAGS));
+        deployCodeTo("UnistrataHook.sol:UnistrataHook", abi.encode(poolManager, _cfg(), address(0xCA11)), HOOK_FLAGS);
+        hook = UnistrataHook(payable(HOOK_FLAGS));
         poolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(hook));
         poolId = poolKey.toId();
         poolManager.initialize(poolKey, Constants.SQRT_PRICE_1_1);
 
-        // seed initial junior coverage so the pool has liquidity to swap against
+        // seed initial sediment coverage so the pool has liquidity to swap against
         MockERC20(Currency.unwrap(currency0)).approve(address(hook), type(uint256).max);
         MockERC20(Currency.unwrap(currency1)).approve(address(hook), type(uint256).max);
         hook.deposit(false, 1000e18, 1000e18);
 
         startBlock = block.number;
-        handler = new StrataHandler(hook, poolKey, swapRouter, currency0, currency1);
+        handler = new UnistrataHandler(hook, poolKey, swapRouter, currency0, currency1);
         targetContract(address(handler));
     }
 
     /// @dev inv. 3 corollary: the coupon is always within its governance clamp.
-    function invariant_seniorRateWithinBounds() public view {
-        assertLe(hook.seniorRate(), hook.rMax());
-        assertGe(hook.seniorRate(), hook.rMin());
+    function invariant_bedrockRateWithinBounds() public view {
+        assertLe(hook.bedrockRate(), hook.rMax());
+        assertGe(hook.bedrockRate(), hook.rMin());
     }
 
     /// @dev inv. 5: cumulative varAcc never exceeds (elapsed blocks)·dCap².
@@ -83,8 +83,8 @@ contract StrataInvariantTest is BaseTest {
 
     /// @dev a tranche with no shares has no NAV (NAV only arises from minted deposits).
     function invariant_navRequiresShares() public view {
-        if (hook.senior().totalSupply() == 0) assertEq(hook.seniorNav(), 0);
-        if (hook.junior().totalSupply() == 0) assertEq(hook.juniorNav(), 0);
+        if (hook.bedrock().totalSupply() == 0) assertEq(hook.bedrockNav(), 0);
+        if (hook.sediment().totalSupply() == 0) assertEq(hook.sedimentNav(), 0);
     }
 
     function invariant_callSummary() public view {

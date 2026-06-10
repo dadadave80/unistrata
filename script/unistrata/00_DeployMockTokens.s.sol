@@ -7,8 +7,8 @@ import {Script, console2} from "forge-std/Script.sol";
 
 /// @notice Deploys the demo pool tokens — tWETH (18 dec) + tUSDC (6 dec) — and mints a starting
 ///         balance to the recipient (DEMO_RECIPIENT, default: the broadcaster). Record the addresses
-///         as TOKEN_WETH / TOKEN_USDC for 01_DeployStrata. Run:
-///           forge script script/strata/00_DeployMockTokens.s.sol \
+///         as TOKEN_WETH / TOKEN_USDC for 01_DeployUnistrata. Run:
+///           forge script script/unistrata/00_DeployMockTokens.s.sol \
 ///             --rpc-url $UNICHAIN_SEPOLIA_RPC --account $ACCOUNT --sender $SENDER --broadcast
 contract DeployMockTokensScript is Script {
     function run() public {
@@ -24,7 +24,7 @@ contract DeployMockTokensScript is Script {
         console2.log("TOKEN_WETH=%s", address(tWETH));
         console2.log("TOKEN_USDC=%s", address(tUSDC));
 
-        // persist for 01_DeployStrata (forge auto-loads .env on the next invocation)
+        // persist for 01_DeployUnistrata (forge auto-loads .env on the next invocation)
         EnvWriter.upsert(".env", "TOKEN_WETH", vm.toString(address(tWETH)));
         EnvWriter.upsert(".env", "TOKEN_USDC", vm.toString(address(tUSDC)));
     }

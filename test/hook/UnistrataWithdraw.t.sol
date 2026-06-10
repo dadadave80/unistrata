@@ -11,18 +11,18 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {Constants} from "v4-core/test/utils/Constants.sol";
 
 import {BaseTest} from "../utils/BaseTest.sol";
-import {StrataHook} from "src/StrataHook.sol";
+import {UnistrataHook} from "src/UnistrataHook.sol";
 
 /// @notice Phase-1/3 withdrawal queue: epoch-locked requests, share-proportional claim, navPerShare
-/// preservation, junior lockup.
-contract StrataWithdrawTest is BaseTest {
+/// preservation, sediment lockup.
+contract UnistrataWithdrawTest is BaseTest {
     using PoolIdLibrary for PoolKey;
 
     Currency internal currency0;
     Currency internal currency1;
     PoolKey internal poolKey;
     PoolId internal poolId;
-    StrataHook internal hook;
+    UnistrataHook internal hook;
 
     address internal alice = makeAddr("alice");
 
@@ -30,8 +30,8 @@ contract StrataWithdrawTest is BaseTest {
         uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x5555 << 144)
     );
 
-    function _cfg() internal pure returns (StrataHook.Config memory) {
-        return StrataHook.Config({
+    function _cfg() internal pure returns (UnistrataHook.Config memory) {
+        return UnistrataHook.Config({
             numeraireIsToken1: true,
             decimals0: 18,
             decimals1: 18,
@@ -50,8 +50,8 @@ contract StrataWithdrawTest is BaseTest {
     function setUp() public {
         deployArtifactsAndLabel();
         (currency0, currency1) = deployCurrencyPair();
-        deployCodeTo("StrataHook.sol:StrataHook", abi.encode(poolManager, _cfg(), address(0xCA11)), HOOK_FLAGS);
-        hook = StrataHook(payable(HOOK_FLAGS));
+        deployCodeTo("UnistrataHook.sol:UnistrataHook", abi.encode(poolManager, _cfg(), address(0xCA11)), HOOK_FLAGS);
+        hook = UnistrataHook(payable(HOOK_FLAGS));
         poolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(hook));
         poolId = poolKey.toId();
         poolManager.initialize(poolKey, Constants.SQRT_PRICE_1_1);
@@ -61,10 +61,10 @@ contract StrataWithdrawTest is BaseTest {
         vm.startPrank(alice);
         MockERC20(Currency.unwrap(currency0)).approve(address(hook), type(uint256).max);
         MockERC20(Currency.unwrap(currency1)).approve(address(hook), type(uint256).max);
-        hook.deposit(false, 500e18, 500e18); // junior
-        hook.deposit(true, 300e18, 300e18); // senior
-        hook.senior().approve(address(hook), type(uint256).max);
-        hook.junior().approve(address(hook), type(uint256).max);
+        hook.deposit(false, 500e18, 500e18); // sediment
+        hook.deposit(true, 300e18, 300e18); // bedrock
+        hook.bedrock().approve(address(hook), type(uint256).max);
+        hook.sediment().approve(address(hook), type(uint256).max);
         vm.stopPrank();
     }
 
@@ -75,66 +75,66 @@ contract StrataWithdrawTest is BaseTest {
 
     // requesting a withdrawal escrows the tranche shares into the hook
     function test_requestWithdraw_escrowsShares() public {
-        uint256 bal = hook.junior().balanceOf(alice);
+        uint256 bal = hook.sediment().balanceOf(alice);
         uint256 shares = bal / 2;
         vm.prank(alice);
         hook.requestWithdraw(false, shares);
-        assertEq(hook.junior().balanceOf(alice), bal - shares);
-        assertEq(hook.junior().balanceOf(address(hook)), shares);
+        assertEq(hook.sediment().balanceOf(alice), bal - shares);
+        assertEq(hook.sediment().balanceOf(address(hook)), shares);
     }
 
     // claim before the lockup elapses reverts
     function test_claim_RevertWhen_lockupNotElapsed() public {
-        uint256 shares = hook.junior().balanceOf(alice) / 2;
+        uint256 shares = hook.sediment().balanceOf(alice) / 2;
         vm.startPrank(alice);
         uint256 id = hook.requestWithdraw(false, shares);
-        vm.expectRevert(StrataHook.StrataHook__WithdrawNotEligible.selector);
+        vm.expectRevert(UnistrataHook.UnistrataHook__WithdrawNotEligible.selector);
         hook.claim(id);
         vm.stopPrank();
     }
 
-    // senior request is claimable after one settlement; tokens returned, shares burned, NAV reduced
-    function test_claim_seniorAfterOneEpoch() public {
-        uint256 shares = hook.senior().balanceOf(alice) / 2;
-        uint256 navBefore = hook.seniorNav();
-        uint256 supplyBefore = hook.senior().totalSupply();
+    // bedrock request is claimable after one settlement; tokens returned, shares burned, NAV reduced
+    function test_claim_bedrockAfterOneEpoch() public {
+        uint256 shares = hook.bedrock().balanceOf(alice) / 2;
+        uint256 navBefore = hook.bedrockNav();
+        uint256 supplyBefore = hook.bedrock().totalSupply();
         uint256 t0Before = MockERC20(Currency.unwrap(currency0)).balanceOf(alice);
         uint256 t1Before = MockERC20(Currency.unwrap(currency1)).balanceOf(alice);
 
         vm.prank(alice);
         uint256 id = hook.requestWithdraw(true, shares);
-        _settle(); // epochId 0 → 1, senior eligible at 1
+        _settle(); // epochId 0 → 1, bedrock eligible at 1
         vm.prank(alice);
         hook.claim(id);
 
-        assertEq(hook.senior().totalSupply(), supplyBefore - shares); // burned
-        assertLt(hook.seniorNav(), navBefore); // NAV reduced by the withdrawn slice
+        assertEq(hook.bedrock().totalSupply(), supplyBefore - shares); // burned
+        assertLt(hook.bedrockNav(), navBefore); // NAV reduced by the withdrawn slice
         // alice got tokens back (both legs of the full-range slice)
         assertGt(MockERC20(Currency.unwrap(currency0)).balanceOf(alice), t0Before);
         assertGt(MockERC20(Currency.unwrap(currency1)).balanceOf(alice), t1Before);
     }
 
-    // junior requires TWO settlements (one extra epoch of lockup)
-    function test_claim_juniorRequiresTwoEpochs() public {
-        uint256 shares = hook.junior().balanceOf(alice) / 2;
+    // sediment requires TWO settlements (one extra epoch of lockup)
+    function test_claim_sedimentRequiresTwoEpochs() public {
+        uint256 shares = hook.sediment().balanceOf(alice) / 2;
         vm.prank(alice);
         uint256 id = hook.requestWithdraw(false, shares);
 
-        _settle(); // epoch 1 — not yet eligible (junior eligible at 2)
+        _settle(); // epoch 1 — not yet eligible (sediment eligible at 2)
         vm.prank(alice);
-        vm.expectRevert(StrataHook.StrataHook__WithdrawNotEligible.selector);
+        vm.expectRevert(UnistrataHook.UnistrataHook__WithdrawNotEligible.selector);
         hook.claim(id);
 
         _settle(); // epoch 2 — now eligible
         vm.prank(alice);
         hook.claim(id);
-        assertEq(hook.junior().balanceOf(address(hook)), 0); // escrow released
+        assertEq(hook.sediment().balanceOf(address(hook)), 0); // escrow released
     }
 
     // a claim leaves the tranche's NAV/share unchanged for remaining holders (conservation + seniority)
     function test_claim_preservesNavPerShare() public {
-        uint256 shares = hook.junior().balanceOf(alice) / 3;
-        uint256 npsBefore = hook.juniorNav() * 1e18 / hook.junior().totalSupply();
+        uint256 shares = hook.sediment().balanceOf(alice) / 3;
+        uint256 npsBefore = hook.sedimentNav() * 1e18 / hook.sediment().totalSupply();
 
         vm.prank(alice);
         uint256 id = hook.requestWithdraw(false, shares);
@@ -143,19 +143,19 @@ contract StrataWithdrawTest is BaseTest {
         vm.prank(alice);
         hook.claim(id);
 
-        uint256 npsAfter = hook.juniorNav() * 1e18 / hook.junior().totalSupply();
+        uint256 npsAfter = hook.sedimentNav() * 1e18 / hook.sediment().totalSupply();
         assertApproxEqRel(npsAfter, npsBefore, 0.001e18); // within 0.1%
-        assertApproxEqAbs(hook.seniorNav() + hook.juniorNav(), hook.totalAssets(), 1e7);
+        assertApproxEqAbs(hook.bedrockNav() + hook.sedimentNav(), hook.totalAssets(), 1e7);
     }
 
     function test_claim_RevertWhen_alreadyClaimed() public {
-        uint256 shares = hook.senior().balanceOf(alice) / 2;
+        uint256 shares = hook.bedrock().balanceOf(alice) / 2;
         vm.prank(alice);
         uint256 id = hook.requestWithdraw(true, shares);
         _settle();
         vm.startPrank(alice);
         hook.claim(id);
-        vm.expectRevert(StrataHook.StrataHook__WithdrawAlreadyClaimed.selector);
+        vm.expectRevert(UnistrataHook.UnistrataHook__WithdrawAlreadyClaimed.selector);
         hook.claim(id);
         vm.stopPrank();
     }

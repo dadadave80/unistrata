@@ -21,19 +21,19 @@ import {NavLib} from "src/libraries/NavLib.sol";
 import {VarianceLib} from "src/libraries/VarianceLib.sol";
 import {WaterfallLib} from "src/libraries/WaterfallLib.sol";
 
-/// @title StrataHook
+/// @title UnistrataHook
 /// @author David Dada (https://github.com/dadadave80)
-/// @notice Uniswap v4 hook that turns one pool into a senior/junior capital structure (Strata).
-///         The hook owns all pool liquidity; depositors hold tranche shares (sSTR / jSTR) instead of
-///         v4 positions. It measures realized variance from the pool's own tick path, prices a senior
-///         coupon off that variance, and settles a senior/junior waterfall each epoch.
+/// @notice Uniswap v4 hook that turns one pool into a bedrock/sediment capital structure (Unistrata).
+///         The hook owns all pool liquidity; depositors hold tranche shares (BEDR / SEDI) instead of
+///         v4 positions. It measures realized variance from the pool's own tick path, prices a bedrock
+///         coupon off that variance, and settles a bedrock/sediment waterfall each epoch.
 /// @dev Single-pool vault: the hook binds to the first pool that initializes it and rejects others.
 ///      It is also a Reactive callback receiver — `settleEpoch(address)` and `emergencySettle(address)`
 ///      are callable only by the Reactive callback proxy (rvm-id checked), with a permissionless
 ///      `settleEpoch()` fallback after the grace period so the demo never bricks on a missed callback.
 /// @custom:security-contact daveproxy80@gmail.com
 /// @custom:security-contact Discord: daveproxy80
-contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
+contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
@@ -53,7 +53,7 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         uint256 rMin; // §3.4 coupon clamp low (WAD APR)
         uint256 rMax; // §3.4 coupon clamp high (WAD APR)
         uint256 lambdaSmoothing; // §3.3 EWMA smoothing λ (WAD)
-        uint256 thetaMax; // §3.6 senior attachment-point cap (WAD fraction)
+        uint256 thetaMax; // §3.6 bedrock attachment-point cap (WAD fraction)
     }
 
     enum Action {
@@ -66,39 +66,41 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     struct WithdrawRequest {
         uint128 shares;
         uint64 eligibleEpoch;
-        bool isSenior;
+        bool isBedrock;
         bool claimed;
     }
 
-    error StrataHook__OnlyHookLiquidity();
-    error StrataHook__AlreadyInitialized();
-    error StrataHook__NotInitialized();
-    error StrataHook__ZeroLiquidity();
-    error StrataHook__DepositTooSmall();
-    error StrataHook__AttachmentCapExceeded();
-    error StrataHook__EpochNotElapsed();
-    error StrataHook__SettlementPriceOutOfBand();
-    error StrataHook__WithdrawNotEligible();
-    error StrataHook__WithdrawAlreadyClaimed();
+    error UnistrataHook__OnlyHookLiquidity();
+    error UnistrataHook__AlreadyInitialized();
+    error UnistrataHook__NotInitialized();
+    error UnistrataHook__ZeroLiquidity();
+    error UnistrataHook__DepositTooSmall();
+    error UnistrataHook__AttachmentCapExceeded();
+    error UnistrataHook__EpochNotElapsed();
+    error UnistrataHook__SettlementPriceOutOfBand();
+    error UnistrataHook__WithdrawNotEligible();
+    error UnistrataHook__WithdrawAlreadyClaimed();
 
     /// @notice Emitted once per new-block observation; the Reactive circuit breaker subscribes to this.
-    event StrataObservation(int24 blockTickDelta, uint256 varAcc);
-    event Deposit(address indexed user, bool isSenior, uint256 amount0, uint256 amount1, uint256 value, uint256 shares);
+    event UnistrataObservation(int24 blockTickDelta, uint256 varAcc);
+    event Deposit(
+        address indexed user, bool isBedrock, uint256 amount0, uint256 amount1, uint256 value, uint256 shares
+    );
     event EpochSettled(
         uint256 indexed epochId,
         uint256 totalAssets,
-        uint256 seniorNav,
-        uint256 juniorNav,
+        uint256 bedrockNav,
+        uint256 sedimentNav,
         uint256 realizedVar,
         uint256 feesEarned,
         uint256 newRate
     );
-    /// @notice Senior took a principal loss (A < S_prev): junior fully exhausted.
-    event SeniorImpaired(uint256 indexed epochId, uint256 seniorPrev, uint256 seniorNew);
-    /// @notice Junior exhausted and senior grew but fell short of its coupon (no principal loss).
-    event SeniorBelowCoupon(uint256 indexed epochId, uint256 seniorTarget, uint256 seniorNew);
+    /// @notice Bedrock took a principal loss (A < S_prev): sediment fully exhausted.
+    event BedrockImpaired(uint256 indexed epochId, uint256 bedrockPrev, uint256 bedrockNew);
+    /// @notice Sediment exhausted and bedrock grew but fell short of its coupon (no principal loss).
+    event BedrockBelowCoupon(uint256 indexed epochId, uint256 bedrockTarget, uint256 bedrockNew);
     event WithdrawRequested(
-        address indexed user, uint256 indexed id, bool isSenior, uint256 shares, uint256 eligibleEpoch
+        address indexed user, uint256 indexed id, bool isBedrock, uint256 shares, uint256 eligibleEpoch
     );
     event WithdrawClaimed(address indexed user, uint256 indexed id, uint256 value);
     /// @notice Emitted when the Reactive volatility circuit breaker forces an early settlement.
@@ -111,8 +113,8 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     bytes32 internal constant POSITION_SALT = bytes32(0);
 
     // --- tranche share tokens (one each, deployed at construction) ---
-    TrancheToken public immutable senior; // sSTR
-    TrancheToken public immutable junior; // jSTR
+    TrancheToken public immutable bedrock; // BEDR
+    TrancheToken public immutable sediment; // SEDI
 
     // --- immutable config ---
     bool public immutable numeraireIsToken1;
@@ -136,13 +138,13 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     int24 public tickUpper;
 
     // --- tranche NAVs (numéraire WAD), updated on deposit and at settlement ---
-    uint256 public seniorNav;
-    uint256 public juniorNav;
+    uint256 public bedrockNav;
+    uint256 public sedimentNav;
 
     // --- epoch state (brief §3.4/§3.5) ---
     uint256 public epochId;
     uint256 public epochStart;
-    uint256 public seniorRate; // r_epoch, fixed at the start of the current epoch (WAD APR)
+    uint256 public bedrockRate; // r_epoch, fixed at the start of the current epoch (WAD APR)
     uint256 public sigma2Ewma;
     uint256 public feeYieldEwma;
 
@@ -159,8 +161,8 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         BaseHook(_poolManager)
         AbstractCallback(callbackSender)
     {
-        senior = new TrancheToken("Strata Senior", "sSTR", address(this));
-        junior = new TrancheToken("Strata Junior", "jSTR", address(this));
+        bedrock = new TrancheToken("Unistrata Bedrock", "BEDR", address(this));
+        sediment = new TrancheToken("Unistrata Sediment", "SEDI", address(this));
 
         numeraireIsToken1 = cfg.numeraireIsToken1;
         decimals0 = cfg.decimals0;
@@ -182,32 +184,32 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
 
     /// @notice Deposit token0+token1 into a tranche; the hook adds full-range liquidity and mints
     ///         shares at the tranche's current NAV/share. Caller must approve this hook for both tokens.
-    /// @param isSenior   True to mint senior (sSTR), false for junior (jSTR).
+    /// @param isBedrock   True to mint bedrock (BEDR), false for sediment (SEDI).
     /// @param amount0Max Max token0 to pull from the caller.
     /// @param amount1Max Max token1 to pull from the caller.
     /// @return shares    Tranche shares minted to the caller.
-    function deposit(bool isSenior, uint256 amount0Max, uint256 amount1Max)
+    function deposit(bool isBedrock, uint256 amount0Max, uint256 amount1Max)
         external
         nonReentrant
         returns (uint256 shares)
     {
-        if (!poolInitialized) revert StrataHook__NotInitialized();
+        if (!poolInitialized) revert UnistrataHook__NotInitialized();
 
         bytes memory res =
-            poolManager.unlock(abi.encode(Action.Deposit, abi.encode(msg.sender, isSenior, amount0Max, amount1Max)));
+            poolManager.unlock(abi.encode(Action.Deposit, abi.encode(msg.sender, isBedrock, amount0Max, amount1Max)));
         (uint256 depositValue, uint256 used0, uint256 used1) = abi.decode(res, (uint256, uint256, uint256));
 
-        uint256 nav = isSenior ? seniorNav : juniorNav;
-        shares = _mintShares(isSenior, nav, depositValue, msg.sender);
+        uint256 nav = isBedrock ? bedrockNav : sedimentNav;
+        shares = _mintShares(isBedrock, nav, depositValue, msg.sender);
 
-        if (isSenior) {
-            seniorNav = nav + depositValue;
+        if (isBedrock) {
+            bedrockNav = nav + depositValue;
             _enforceAttachmentCap();
         } else {
-            juniorNav = nav + depositValue;
+            sedimentNav = nav + depositValue;
         }
 
-        emit Deposit(msg.sender, isSenior, used0, used1, depositValue, shares);
+        emit Deposit(msg.sender, isBedrock, used0, used1, depositValue, shares);
     }
 
     //*//////////////////////////////////////////////////////////////////////////
@@ -215,34 +217,34 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     //////////////////////////////////////////////////////////////////////////*//
 
     /// @notice Queue a withdrawal of tranche shares. Shares are escrowed and become claimable after an
-    ///         epoch lockup — senior at the next settlement (+1 epoch), junior one epoch later (+2,
-    ///         so a junior cannot exit just before a volatility event it is paid to absorb). Caller
+    ///         epoch lockup — bedrock at the next settlement (+1 epoch), sediment one epoch later (+2,
+    ///         so a sediment cannot exit just before a volatility event it is paid to absorb). Caller
     ///         must approve this hook for the tranche token.
     /// @return id The request id, used in {claim}.
-    function requestWithdraw(bool isSenior, uint256 shares) external nonReentrant returns (uint256 id) {
-        TrancheToken token = isSenior ? senior : junior;
+    function requestWithdraw(bool isBedrock, uint256 shares) external nonReentrant returns (uint256 id) {
+        TrancheToken token = isBedrock ? bedrock : sediment;
         token.transferFrom(msg.sender, address(this), shares); // escrow
 
-        uint256 eligible = epochId + (isSenior ? 1 : 2);
+        uint256 eligible = epochId + (isBedrock ? 1 : 2);
         id = withdrawRequests[msg.sender].length;
         withdrawRequests[msg.sender].push(
             WithdrawRequest({
-                shares: uint128(shares), eligibleEpoch: uint64(eligible), isSenior: isSenior, claimed: false
+                shares: uint128(shares), eligibleEpoch: uint64(eligible), isBedrock: isBedrock, claimed: false
             })
         );
-        emit WithdrawRequested(msg.sender, id, isSenior, shares, eligible);
+        emit WithdrawRequested(msg.sender, id, isBedrock, shares, eligible);
     }
 
     /// @notice Claim a previously-queued withdrawal once its lockup has elapsed. Pays out the
     ///         withdrawer's share-proportional slice of the hook's assets and burns the escrowed shares.
     function claim(uint256 id) external nonReentrant returns (uint256 value) {
         WithdrawRequest storage req = withdrawRequests[msg.sender][id];
-        if (req.claimed) revert StrataHook__WithdrawAlreadyClaimed();
-        if (epochId < req.eligibleEpoch) revert StrataHook__WithdrawNotEligible();
+        if (req.claimed) revert UnistrataHook__WithdrawAlreadyClaimed();
+        if (epochId < req.eligibleEpoch) revert UnistrataHook__WithdrawNotEligible();
         req.claimed = true;
 
         bytes memory res =
-            poolManager.unlock(abi.encode(Action.Withdraw, abi.encode(msg.sender, req.isSenior, uint256(req.shares))));
+            poolManager.unlock(abi.encode(Action.Withdraw, abi.encode(msg.sender, req.isBedrock, uint256(req.shares))));
         value = abi.decode(res, (uint256));
         emit WithdrawClaimed(msg.sender, id, value);
     }
@@ -254,33 +256,33 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     /// @notice Permissionless settlement fallback — anyone may settle once the epoch has elapsed AND
     ///         the grace period has passed, so the demo never bricks if a Reactive callback is missed.
     function settleEpoch() external nonReentrant {
-        if (block.timestamp < epochStart + epochDuration + gracePeriod) revert StrataHook__EpochNotElapsed();
+        if (block.timestamp < epochStart + epochDuration + gracePeriod) revert UnistrataHook__EpochNotElapsed();
         _settle();
     }
 
     /// @notice Reactive heartbeat callback: the Reactive callback proxy settles the epoch on schedule
     ///         (once the epoch has elapsed). Callable only by the authorized proxy for our rvm id.
     function settleEpoch(address rvm_id) external nonReentrant authorizedSenderOnly rvmIdOnly(rvm_id) {
-        if (block.timestamp < epochStart + epochDuration) revert StrataHook__EpochNotElapsed();
+        if (block.timestamp < epochStart + epochDuration) revert UnistrataHook__EpochNotElapsed();
         _settle();
     }
 
     /// @notice Reactive volatility circuit breaker: settle the epoch EARLY (pro-rata) on a vol spike,
-    ///         locking in the senior coupon before further drawdown. Callback-only; no time gate.
+    ///         locking in the bedrock coupon before further drawdown. Callback-only; no time gate.
     function emergencySettle(address rvm_id) external nonReentrant authorizedSenderOnly rvmIdOnly(rvm_id) {
         emit EmergencySettled(epochId);
         _settle();
     }
 
-    /// @dev Mark to market, run the senior/junior waterfall, roll the epoch and re-price the coupon.
+    /// @dev Mark to market, run the bedrock/sediment waterfall, roll the epoch and re-price the coupon.
     function _settle() internal {
-        if (!poolInitialized) revert StrataHook__NotInitialized();
+        if (!poolInitialized) revert UnistrataHook__NotInitialized();
 
         // §3.5 price guard: reject settlement if the current price is far from our own sampled tick.
         (, int24 tick,,) = poolManager.getSlot0(boundId);
         int256 dev = int256(tick) - int256(lastObservedTick);
         if (dev < 0) dev = -dev;
-        if (uint256(dev) > guardBand) revert StrataHook__SettlementPriceOutOfBand();
+        if (uint256(dev) > guardBand) revert UnistrataHook__SettlementPriceOutOfBand();
 
         // Collect fees into idle and mark to market through the unlock callback.
         bytes memory res = poolManager.unlock(abi.encode(Action.Settle, bytes("")));
@@ -292,25 +294,25 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     /// @dev The waterfall split + impairment signals; defers the epoch roll to keep the stack shallow.
     function _settleWaterfall(uint256 A, uint256 feesValue) internal {
         uint256 dt = block.timestamp - epochStart;
-        uint256 sPrev = seniorNav;
+        uint256 sPrev = bedrockNav;
 
-        uint256 sTarget = WaterfallLib.seniorTarget(sPrev, seniorRate, dt, 0);
+        uint256 sTarget = WaterfallLib.bedrockTarget(sPrev, bedrockRate, dt, 0);
         (uint256 sNew, uint256 jNew, bool impaired) = WaterfallLib.settle(A, sTarget);
 
         // Two distinct impairment signals (the literal §3.5 flag, refined by principal loss).
         if (sNew < sPrev) {
-            emit SeniorImpaired(epochId, sPrev, sNew);
+            emit BedrockImpaired(epochId, sPrev, sNew);
         } else if (impaired) {
-            emit SeniorBelowCoupon(epochId, sTarget, sNew);
+            emit BedrockBelowCoupon(epochId, sTarget, sNew);
         }
 
-        seniorNav = sNew;
-        juniorNav = jNew;
+        bedrockNav = sNew;
+        sedimentNav = jNew;
 
         _rollEpoch(A, feesValue, dt);
     }
 
-    /// @dev Roll the epoch clock, update the variance + fee EWMAs, and re-price the senior coupon.
+    /// @dev Roll the epoch clock, update the variance + fee EWMAs, and re-price the bedrock coupon.
     function _rollEpoch(uint256 A, uint256 feesValue, uint256 dt) internal {
         uint256 varDelta = varAcc - varAccAtEpochStart;
         uint256 sigma2 = dt == 0 ? 0 : VarianceLib.annualizedVariance(varDelta, dt);
@@ -320,14 +322,14 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         uint256 feeYield = (A == 0 || dt == 0) ? 0 : Math.mulDiv(feesValue, WAD * SECONDS_PER_YEAR, A * dt);
         feeYieldEwma = VarianceLib.ewma(feeYieldEwma, feeYield, lambdaSmoothing);
 
-        seniorRate = WaterfallLib.couponRate(feeYieldEwma, sigma2Ewma, lambdaRisk, rMin, rMax);
+        bedrockRate = WaterfallLib.couponRate(feeYieldEwma, sigma2Ewma, lambdaRisk, rMin, rMax);
 
         uint256 settledId = epochId;
         epochId = settledId + 1;
         epochStart = block.timestamp;
         varAccAtEpochStart = varAcc;
 
-        emit EpochSettled(settledId, A, seniorNav, juniorNav, varDelta, feesValue, seniorRate);
+        emit EpochSettled(settledId, A, bedrockNav, sedimentNav, varDelta, feesValue, bedrockRate);
     }
 
     //*//////////////////////////////////////////////////////////////////////////
@@ -355,7 +357,7 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
 
         uint128 liquidity =
             LiquidityAmounts.getLiquidityForAmounts(sqrtPriceX96, sqrtLower, sqrtUpper, amount0Max, amount1Max);
-        if (liquidity == 0) revert StrataHook__ZeroLiquidity();
+        if (liquidity == 0) revert UnistrataHook__ZeroLiquidity();
 
         (BalanceDelta delta,) = poolManager.modifyLiquidity(
             boundKey,
@@ -380,10 +382,10 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     ///      pay it out, then burn the escrowed shares and reduce the tranche NAV. Because both NAV and
     ///      the removed value are `nav·shares/supply`, the remaining holders' NAV/share is unchanged.
     function _unlockWithdraw(bytes memory payload) internal returns (bytes memory) {
-        (address user, bool isSenior, uint256 shares) = abi.decode(payload, (address, bool, uint256));
-        TrancheToken token = isSenior ? senior : junior;
+        (address user, bool isBedrock, uint256 shares) = abi.decode(payload, (address, bool, uint256));
+        TrancheToken token = isBedrock ? bedrock : sediment;
         uint256 supply = token.totalSupply();
-        uint256 nav = isSenior ? seniorNav : juniorNav;
+        uint256 nav = isBedrock ? bedrockNav : sedimentNav;
         uint256 value = Math.mulDiv(nav, shares, supply);
 
         uint256 totalA = totalAssets();
@@ -411,10 +413,10 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         }
 
         token.burn(address(this), shares);
-        if (isSenior) {
-            seniorNav = nav - value;
+        if (isBedrock) {
+            bedrockNav = nav - value;
         } else {
-            juniorNav = nav - value;
+            sedimentNav = nav - value;
         }
 
         return abi.encode(value);
@@ -469,11 +471,11 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
             NavLib.valueInNumeraire(amt0 + idle0, amt1 + idle1, sqrtPriceX96, numeraireIsToken1, decimals0, decimals1);
     }
 
-    /// @notice Remaining senior capacity (numéraire WAD) before the attachment-point cap binds.
-    function seniorCapacityRemaining() external view returns (uint256) {
+    /// @notice Remaining bedrock capacity (numéraire WAD) before the attachment-point cap binds.
+    function bedrockCapacityRemaining() external view returns (uint256) {
         if (thetaMax >= WAD) return type(uint256).max;
-        uint256 sMax = Math.mulDiv(thetaMax, juniorNav, WAD - thetaMax);
-        return sMax > seniorNav ? sMax - seniorNav : 0;
+        uint256 sMax = Math.mulDiv(thetaMax, sedimentNav, WAD - thetaMax);
+        return sMax > bedrockNav ? sMax - bedrockNav : 0;
     }
 
     //*//////////////////////////////////////////////////////////////////////////
@@ -482,28 +484,30 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
 
     /// @dev Mint tranche shares at the current NAV/share. First deposit carves dead shares to a burn
     ///      address (inflation guard) and mints 1:1; later deposits mint `value·supply/nav`.
-    function _mintShares(bool isSenior, uint256 nav, uint256 depositValue, address to)
+    function _mintShares(bool isBedrock, uint256 nav, uint256 depositValue, address to)
         internal
         returns (uint256 minted)
     {
-        TrancheToken token = isSenior ? senior : junior;
+        TrancheToken token = isBedrock ? bedrock : sediment;
         uint256 supply = token.totalSupply();
         if (supply == 0) {
-            if (depositValue <= DEAD_SHARES) revert StrataHook__DepositTooSmall();
+            if (depositValue <= DEAD_SHARES) revert UnistrataHook__DepositTooSmall();
             token.mint(DEAD_ADDRESS, DEAD_SHARES);
             minted = depositValue - DEAD_SHARES;
             token.mint(to, minted);
         } else {
             minted = Math.mulDiv(depositValue, supply, nav);
-            if (minted == 0) revert StrataHook__DepositTooSmall();
+            if (minted == 0) revert UnistrataHook__DepositTooSmall();
             token.mint(to, minted);
         }
     }
 
-    /// @dev Revert if a senior deposit pushes S/(S+J) above the attachment-point cap θ_max.
+    /// @dev Revert if a bedrock deposit pushes S/(S+J) above the attachment-point cap θ_max.
     function _enforceAttachmentCap() internal view {
-        uint256 total = seniorNav + juniorNav;
-        if (total != 0 && Math.mulDiv(seniorNav, WAD, total) > thetaMax) revert StrataHook__AttachmentCapExceeded();
+        uint256 total = bedrockNav + sedimentNav;
+        if (total != 0 && Math.mulDiv(bedrockNav, WAD, total) > thetaMax) {
+            revert UnistrataHook__AttachmentCapExceeded();
+        }
     }
 
     /// @dev Settle one liquidity-delta leg: pay the owed token (negative delta) from `payer`, or take
@@ -547,7 +551,7 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
 
     /// @dev Bind to the first pool only; seed the variance pair, epoch clock, and full-range ticks.
     function _afterInitialize(address, PoolKey calldata key, uint160, int24 tick) internal override returns (bytes4) {
-        if (poolInitialized) revert StrataHook__AlreadyInitialized();
+        if (poolInitialized) revert UnistrataHook__AlreadyInitialized();
         poolInitialized = true;
         boundKey = key;
         boundId = key.toId();
@@ -557,7 +561,7 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         (tickLower, tickUpper,,) = NavLib.fullRangeBounds(key.tickSpacing);
 
         epochStart = block.timestamp;
-        seniorRate = rMin; // no history yet → coupon floored
+        bedrockRate = rMin; // no history yet → coupon floored
 
         return BaseHook.afterInitialize.selector;
     }
@@ -569,12 +573,12 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         override
         returns (bytes4)
     {
-        if (sender != address(this)) revert StrataHook__OnlyHookLiquidity();
+        if (sender != address(this)) revert UnistrataHook__OnlyHookLiquidity();
         return BaseHook.beforeAddLiquidity.selector;
     }
 
     /// @dev Per-block realized-variance sampling from the pool's own tick (brief §3.3). Emits
-    ///      StrataObservation only on a new-block observation — the Reactive circuit breaker watches it.
+    ///      UnistrataObservation only on a new-block observation — the Reactive circuit breaker watches it.
     function _afterSwap(address, PoolKey calldata, SwapParams calldata, BalanceDelta, bytes calldata)
         internal
         override
@@ -587,7 +591,7 @@ contract StrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
             lastObservedBlock = nb;
             lastObservedTick = nt;
             varAcc = nv;
-            emit StrataObservation(blockTickDelta, nv);
+            emit UnistrataObservation(blockTickDelta, nv);
         }
         return (BaseHook.afterSwap.selector, 0);
     }

@@ -11,17 +11,17 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {Constants} from "v4-core/test/utils/Constants.sol";
 
 import {BaseTest} from "../utils/BaseTest.sol";
-import {StrataHook} from "src/StrataHook.sol";
+import {UnistrataHook} from "src/UnistrataHook.sol";
 
 /// @notice Phase-2 afterSwap variance wiring: per-block sampling, once-per-block, cap binding, event.
-contract StrataVarianceTest is BaseTest {
+contract UnistrataVarianceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
 
     Currency internal currency0;
     Currency internal currency1;
     PoolKey internal poolKey;
     PoolId internal poolId;
-    StrataHook internal hook;
+    UnistrataHook internal hook;
 
     address internal alice = makeAddr("alice");
     uint24 internal constant DCAP = 1000;
@@ -30,8 +30,8 @@ contract StrataVarianceTest is BaseTest {
         uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x5552 << 144)
     );
 
-    function _cfg() internal pure returns (StrataHook.Config memory) {
-        return StrataHook.Config({
+    function _cfg() internal pure returns (UnistrataHook.Config memory) {
+        return UnistrataHook.Config({
             numeraireIsToken1: true,
             decimals0: 18,
             decimals1: 18,
@@ -50,8 +50,8 @@ contract StrataVarianceTest is BaseTest {
     function setUp() public {
         deployArtifactsAndLabel();
         (currency0, currency1) = deployCurrencyPair();
-        deployCodeTo("StrataHook.sol:StrataHook", abi.encode(poolManager, _cfg(), address(0xCA11)), HOOK_FLAGS);
-        hook = StrataHook(payable(HOOK_FLAGS));
+        deployCodeTo("UnistrataHook.sol:UnistrataHook", abi.encode(poolManager, _cfg(), address(0xCA11)), HOOK_FLAGS);
+        hook = UnistrataHook(payable(HOOK_FLAGS));
         poolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(hook));
         poolId = poolKey.toId();
         poolManager.initialize(poolKey, Constants.SQRT_PRICE_1_1);
@@ -62,7 +62,7 @@ contract StrataVarianceTest is BaseTest {
         vm.startPrank(alice);
         MockERC20(Currency.unwrap(currency0)).approve(address(hook), type(uint256).max);
         MockERC20(Currency.unwrap(currency1)).approve(address(hook), type(uint256).max);
-        hook.deposit(false, 500e18, 500e18); // junior, seeds liquidity
+        hook.deposit(false, 500e18, 500e18); // sediment, seeds liquidity
         vm.stopPrank();
     }
 
@@ -100,11 +100,11 @@ contract StrataVarianceTest is BaseTest {
         assertEq(hook.varAcc(), uint256(DCAP) * DCAP); // exactly the cap, 1e6
     }
 
-    // StrataObservation is emitted on a new-block observation (the Reactive trigger)
+    // UnistrataObservation is emitted on a new-block observation (the Reactive trigger)
     function test_afterSwap_emitsObservation() public {
         vm.roll(block.number + 1);
         vm.expectEmit(false, false, false, false, address(hook));
-        emit StrataHook.StrataObservation(0, 0);
+        emit UnistrataHook.UnistrataObservation(0, 0);
         _swap(10e18, true);
     }
 

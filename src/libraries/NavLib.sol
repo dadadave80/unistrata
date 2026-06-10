@@ -7,7 +7,7 @@ import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
 
 /// @title NavLib
-/// @notice Pure mark-to-market valuation primitives for the full-range, hook-owned Strata position
+/// @notice Pure mark-to-market valuation primitives for the full-range, hook-owned Unistrata position
 ///         (brief §3.5 step-1). Values the position in the numéraire (token1 assumed USD-stable per
 ///         §3.2), normalized to 1e18 WAD, deriving entirely from the pool's own `sqrtPriceX96` — no
 ///         external oracle.

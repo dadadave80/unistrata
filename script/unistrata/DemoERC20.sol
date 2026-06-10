@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title DemoERC20
-/// @notice Mintable ERC-20 with configurable decimals, for the Strata testnet demo (tWETH/tUSDC).
+/// @notice Mintable ERC-20 with configurable decimals, for the Unistrata testnet demo (tWETH/tUSDC).
 ///         `mint` is intentionally permissionless so the demo pool can be funded without a faucet.
 ///         Demo tooling only — not part of the protocol.
 contract DemoERC20 is ERC20 {

@@ -13,12 +13,12 @@ contract TrancheTokenTest is Test {
     address internal bob = makeAddr("bob");
 
     function setUp() public {
-        token = new TrancheToken("Strata Senior", "sSTR", hook);
+        token = new TrancheToken("Unistrata Bedrock", "BEDR", hook);
     }
 
     function test_constructor_setsMetadataAndHook() public view {
-        assertEq(token.name(), "Strata Senior");
-        assertEq(token.symbol(), "sSTR");
+        assertEq(token.name(), "Unistrata Bedrock");
+        assertEq(token.symbol(), "BEDR");
         assertEq(token.decimals(), 18);
         assertEq(token.hook(), hook);
         assertEq(token.totalSupply(), 0);

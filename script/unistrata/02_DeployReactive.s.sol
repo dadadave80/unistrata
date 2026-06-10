@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {StrataReactive} from "../../src/reactive/StrataReactive.sol";
+import {UnistrataReactive} from "../../src/reactive/UnistrataReactive.sol";
 import {EnvWriter} from "./EnvWriter.sol";
 import {Script, console2} from "forge-std/Script.sol";
 
-/// @notice Deploys the StrataReactive RSC on the Reactive Network (Lasna, chainId 5318007). The
-///         constructor registers both subscriptions (CRON heartbeat + the hook's StrataObservation),
+/// @notice Deploys the UnistrataReactive RSC on the Reactive Network (Lasna, chainId 5318007). The
+///         constructor registers both subscriptions (CRON heartbeat + the hook's UnistrataObservation),
 ///         so deploying IS subscribing. Run with:
-///         STRATA_HOOK=0x... forge script script/strata/02_DeployReactive.s.sol \
+///         UNISTRATA_HOOK=0x... forge script script/unistrata/02_DeployReactive.s.sol \
 ///             --rpc-url https://lasna-rpc.rnk.dev/ --account $ACCOUNT --sender $SENDER --broadcast
 contract DeployReactiveScript is Script {
     uint256 internal constant ORIGIN_CHAIN_ID = 1301; // Unichain Sepolia (the hook's home)
@@ -25,18 +25,18 @@ contract DeployReactiveScript is Script {
     uint64 internal constant CALLBACK_GAS_LIMIT = 1_000_000;
 
     function run() public {
-        address strataHook = vm.envAddress("STRATA_HOOK");
+        address unistrataHook = vm.envAddress("UNISTRATA_HOOK");
 
         // The constructor subscribes (try/catch) — one deploy tx deploys AND subscribes on-chain.
         // Locally the 0x64 precompile is absent so a SubscribeFailed event fires here (harmless);
         // on the real node both subscriptions take effect.
         vm.startBroadcast();
-        StrataReactive rsc = new StrataReactive(
-            ORIGIN_CHAIN_ID, strataHook, CRON_TOPIC, TICKS_PER_EPOCH, SPIKE_THRESHOLD, CALLBACK_GAS_LIMIT
+        UnistrataReactive rsc = new UnistrataReactive(
+            ORIGIN_CHAIN_ID, unistrataHook, CRON_TOPIC, TICKS_PER_EPOCH, SPIKE_THRESHOLD, CALLBACK_GAS_LIMIT
         );
         vm.stopBroadcast();
 
-        console2.log("STRATA_REACTIVE=%s", address(rsc));
-        EnvWriter.upsert(".env", "STRATA_REACTIVE", vm.toString(address(rsc)));
+        console2.log("UNISTRATA_REACTIVE=%s", address(rsc));
+        EnvWriter.upsert(".env", "UNISTRATA_REACTIVE", vm.toString(address(rsc)));
     }
 }

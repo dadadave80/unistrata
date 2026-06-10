@@ -11,18 +11,18 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {Constants} from "v4-core/test/utils/Constants.sol";
 
 import {BaseTest} from "../utils/BaseTest.sol";
-import {StrataHook} from "src/StrataHook.sol";
+import {UnistrataHook} from "src/UnistrataHook.sol";
 
-/// @notice Phase-3 settlement: the senior/junior waterfall, epoch roll, coupon reprice, conservation
+/// @notice Phase-3 settlement: the bedrock/sediment waterfall, epoch roll, coupon reprice, conservation
 /// (invariant 1), coupon honesty (invariant 3), and the settlement price guard.
-contract StrataSettleTest is BaseTest {
+contract UnistrataSettleTest is BaseTest {
     using PoolIdLibrary for PoolKey;
 
     Currency internal currency0;
     Currency internal currency1;
     PoolKey internal poolKey;
     PoolId internal poolId;
-    StrataHook internal hook;
+    UnistrataHook internal hook;
 
     address internal alice = makeAddr("alice");
     uint256 internal constant GUARD_BAND = 5000;
@@ -31,8 +31,8 @@ contract StrataSettleTest is BaseTest {
         uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x5553 << 144)
     );
 
-    function _cfg() internal pure returns (StrataHook.Config memory) {
-        return StrataHook.Config({
+    function _cfg() internal pure returns (UnistrataHook.Config memory) {
+        return UnistrataHook.Config({
             numeraireIsToken1: true,
             decimals0: 18,
             decimals1: 18,
@@ -51,8 +51,8 @@ contract StrataSettleTest is BaseTest {
     function setUp() public {
         deployArtifactsAndLabel();
         (currency0, currency1) = deployCurrencyPair();
-        deployCodeTo("StrataHook.sol:StrataHook", abi.encode(poolManager, _cfg(), address(0xCA11)), HOOK_FLAGS);
-        hook = StrataHook(payable(HOOK_FLAGS));
+        deployCodeTo("UnistrataHook.sol:UnistrataHook", abi.encode(poolManager, _cfg(), address(0xCA11)), HOOK_FLAGS);
+        hook = UnistrataHook(payable(HOOK_FLAGS));
         poolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(hook));
         poolId = poolKey.toId();
         poolManager.initialize(poolKey, Constants.SQRT_PRICE_1_1);
@@ -62,8 +62,8 @@ contract StrataSettleTest is BaseTest {
         vm.startPrank(alice);
         MockERC20(Currency.unwrap(currency0)).approve(address(hook), type(uint256).max);
         MockERC20(Currency.unwrap(currency1)).approve(address(hook), type(uint256).max);
-        hook.deposit(false, 500e18, 500e18); // junior coverage first
-        hook.deposit(true, 300e18, 300e18); // senior within cap (~0.375)
+        hook.deposit(false, 500e18, 500e18); // sediment coverage first
+        hook.deposit(true, 300e18, 300e18); // bedrock within cap (~0.375)
         vm.stopPrank();
     }
 
@@ -76,7 +76,7 @@ contract StrataSettleTest is BaseTest {
     }
 
     function test_settleEpoch_RevertWhen_notElapsed() public {
-        vm.expectRevert(StrataHook.StrataHook__EpochNotElapsed.selector);
+        vm.expectRevert(UnistrataHook.UnistrataHook__EpochNotElapsed.selector);
         hook.settleEpoch();
     }
 
@@ -85,14 +85,14 @@ contract StrataSettleTest is BaseTest {
         uint256 e0 = hook.epochId();
         _elapseEpoch();
         hook.settleEpoch();
-        assertApproxEqAbs(hook.seniorNav() + hook.juniorNav(), hook.totalAssets(), 3);
+        assertApproxEqAbs(hook.bedrockNav() + hook.sedimentNav(), hook.totalAssets(), 3);
         assertEq(hook.epochId(), e0 + 1);
         assertEq(hook.epochStart(), block.timestamp);
     }
 
-    // coupon honesty (inv. 3) + seniority: with the first-epoch rate = 0, senior never grows
-    function test_settleEpoch_couponHonesty_seniorDoesNotGrow() public {
-        uint256 sBefore = hook.seniorNav();
+    // coupon honesty (inv. 3) + seniority: with the first-epoch rate = 0, bedrock never grows
+    function test_settleEpoch_couponHonesty_bedrockDoesNotGrow() public {
+        uint256 sBefore = hook.bedrockNav();
         // some cross-block volatility (each swap a new block → lastObservedTick tracks)
         vm.roll(block.number + 1);
         _swap(30e18, true);
@@ -100,14 +100,14 @@ contract StrataSettleTest is BaseTest {
         _swap(20e18, false);
         _elapseEpoch();
         hook.settleEpoch();
-        // rate was 0 ⇒ senior target = sPrev ⇒ sNew = min(A, sPrev) ≤ sPrev
-        assertLe(hook.seniorNav(), sBefore);
+        // rate was 0 ⇒ bedrock target = sPrev ⇒ sNew = min(A, sPrev) ≤ sPrev
+        assertLe(hook.bedrockNav(), sBefore);
     }
 
-    // volatile epoch: junior absorbs the IL while senior is protected; conservation holds
-    function test_settleEpoch_juniorAbsorbsIL_seniorProtected() public {
-        uint256 sBefore = hook.seniorNav();
-        uint256 jBefore = hook.juniorNav();
+    // volatile epoch: sediment absorbs the IL while bedrock is protected; conservation holds
+    function test_settleEpoch_sedimentAbsorbsIL_bedrockProtected() public {
+        uint256 sBefore = hook.bedrockNav();
+        uint256 jBefore = hook.sedimentNav();
         // a moderate one-way move creates impermanent loss
         vm.roll(block.number + 1);
         _swap(60e18, true);
@@ -116,11 +116,11 @@ contract StrataSettleTest is BaseTest {
         _elapseEpoch();
         hook.settleEpoch();
 
-        assertApproxEqAbs(hook.seniorNav() + hook.juniorNav(), hook.totalAssets(), 3); // conservation
-        assertLe(hook.seniorNav(), sBefore); // senior not over-credited (rate 0)
-        assertGt(hook.juniorNav(), 0); // junior still has coverage
-        // junior bore the variance: its NAV moved more than senior's (which is pinned to target)
-        assertTrue(hook.juniorNav() != jBefore);
+        assertApproxEqAbs(hook.bedrockNav() + hook.sedimentNav(), hook.totalAssets(), 3); // conservation
+        assertLe(hook.bedrockNav(), sBefore); // bedrock not over-credited (rate 0)
+        assertGt(hook.sedimentNav(), 0); // sediment still has coverage
+        // sediment bore the variance: its NAV moved more than bedrock's (which is pinned to target)
+        assertTrue(hook.sedimentNav() != jBefore);
     }
 
     // the epoch reprices the coupon from the realized-variance EWMA
@@ -133,7 +133,7 @@ contract StrataSettleTest is BaseTest {
         hook.settleEpoch();
         // sigma2Ewma now reflects realized variance; rate stays within [rMin, rMax]
         assertGt(hook.sigma2Ewma(), 0);
-        assertLe(hook.seniorRate(), 0.5e18);
+        assertLe(hook.bedrockRate(), 0.5e18);
     }
 
     // settlement price guard: an intra-block move away from the last observation reverts
@@ -142,7 +142,7 @@ contract StrataSettleTest is BaseTest {
         _swap(1e18, true); // observes lastObservedTick at this block
         _swap(400e18, true); // SAME block: big move, not re-observed → currentTick far from sampled
         _elapseEpoch();
-        vm.expectRevert(StrataHook.StrataHook__SettlementPriceOutOfBand.selector);
+        vm.expectRevert(UnistrataHook.UnistrataHook__SettlementPriceOutOfBand.selector);
         hook.settleEpoch();
     }
 }

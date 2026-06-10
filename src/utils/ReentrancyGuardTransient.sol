@@ -11,7 +11,7 @@ abstract contract ReentrancyGuardTransient {
     error ReentrancyGuardReentrantCall();
 
     /// @dev Unique transient-storage slot holding the guard flag.
-    bytes32 private constant _GUARD_SLOT = keccak256("strata.reentrancy.guard.transient");
+    bytes32 private constant _GUARD_SLOT = keccak256("unistrata.reentrancy.guard.transient");
 
     modifier nonReentrant() {
         bytes32 slot = _GUARD_SLOT;

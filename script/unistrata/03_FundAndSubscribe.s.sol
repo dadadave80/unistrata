@@ -9,7 +9,7 @@ interface ICallbackProxy {
     function depositTo(address _contract) external payable;
 }
 
-/// @notice Funds both sides of the Strata × Reactive deployment. The RSC's subscriptions were already
+/// @notice Funds both sides of the Unistrata × Reactive deployment. The RSC's subscriptions were already
 ///         registered in its constructor (02_DeployReactive); this script only moves native funds:
 ///           • the hook (destination callback contract) on the ORIGIN chain, via the callback proxy's
 ///             `depositTo` — covers callback gas / settles debt;
@@ -18,8 +18,8 @@ interface ICallbackProxy {
 ///         MULTICHAIN (default `run()`) — funds BOTH chains in ONE invocation via Foundry in-script forks
 ///         (`vm.createSelectFork`). Do NOT pass `--rpc-url`; the script selects each chain itself. Amounts
 ///         are integer wei (e.g. HOOK_FUNDING_WEI=50000000000000000, RSC_FUNDING_WEI=5000000000000000000):
-///           STRATA_HOOK=0x.. STRATA_REACTIVE=0x.. HOOK_FUNDING_WEI=.. RSC_FUNDING_WEI=.. \
-///             forge script script/strata/03_FundAndSubscribe.s.sol \
+///           UNISTRATA_HOOK=0x.. UNISTRATA_REACTIVE=0x.. HOOK_FUNDING_WEI=.. RSC_FUNDING_WEI=.. \
+///             forge script script/unistrata/03_FundAndSubscribe.s.sol \
 ///               --broadcast --account $ACCOUNT --sender $SENDER
 ///         Add `--multi` only when you later `--resume` or `--verify` the multichain run; broadcasts land
 ///         under `broadcast/multi/`.
@@ -57,7 +57,7 @@ contract FundAndSubscribeScript is Script {
 
     /// @dev Deposit HOOK_FUNDING_WEI to the hook via the callback proxy on the currently-selected chain.
     function _fundHook() internal {
-        address hook = vm.envAddress("STRATA_HOOK");
+        address hook = vm.envAddress("UNISTRATA_HOOK");
         uint256 amount = vm.envUint("HOOK_FUNDING_WEI"); // integer wei, e.g. 50000000000000000 (0.05 ether)
         vm.startBroadcast();
         ICallbackProxy(CALLBACK_PROXY).depositTo{value: amount}(hook);
@@ -67,7 +67,7 @@ contract FundAndSubscribeScript is Script {
 
     /// @dev Send RSC_FUNDING_WEI of native REACT to the RSC on the currently-selected chain.
     function _fundReactive() internal {
-        address payable rsc = payable(vm.envAddress("STRATA_REACTIVE"));
+        address payable rsc = payable(vm.envAddress("UNISTRATA_REACTIVE"));
         uint256 amount = vm.envUint("RSC_FUNDING_WEI"); // integer wei of native REACT on Lasna
         vm.startBroadcast();
         (bool ok,) = rsc.call{value: amount}(""); // RSC.receive() accepts; coverDebt() settles debt

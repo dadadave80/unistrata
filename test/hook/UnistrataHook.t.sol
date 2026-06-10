@@ -12,26 +12,26 @@ import {ModifyLiquidityParams} from "v4-core/src/types/PoolOperation.sol";
 import {Constants} from "v4-core/test/utils/Constants.sol";
 
 import {BaseTest} from "../utils/BaseTest.sol";
-import {StrataHook} from "src/StrataHook.sol";
+import {UnistrataHook} from "src/UnistrataHook.sol";
 
-/// @notice Phase-1 foundation tests for StrataHook: construction, permissions, pool binding,
+/// @notice Phase-1 foundation tests for UnistrataHook: construction, permissions, pool binding,
 /// variance seeding, and the external-LP guard. Deposit/settlement come in later slices.
-contract StrataHookFoundationTest is BaseTest {
+contract UnistrataHookFoundationTest is BaseTest {
     using PoolIdLibrary for PoolKey;
 
     Currency internal currency0;
     Currency internal currency1;
     PoolKey internal poolKey;
     PoolId internal poolId;
-    StrataHook internal hook;
+    UnistrataHook internal hook;
 
     // flag bits this hook needs: afterInitialize, afterSwap, beforeAddLiquidity
     address internal constant HOOK_FLAGS = address(
         uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x5550 << 144)
     );
 
-    function _defaultConfig() internal pure returns (StrataHook.Config memory) {
-        return StrataHook.Config({
+    function _defaultConfig() internal pure returns (UnistrataHook.Config memory) {
+        return UnistrataHook.Config({
             numeraireIsToken1: true,
             decimals0: 18,
             decimals1: 18,
@@ -52,19 +52,19 @@ contract StrataHookFoundationTest is BaseTest {
         (currency0, currency1) = deployCurrencyPair();
 
         bytes memory args = abi.encode(poolManager, _defaultConfig(), address(0xCA11));
-        deployCodeTo("StrataHook.sol:StrataHook", args, HOOK_FLAGS);
-        hook = StrataHook(payable(HOOK_FLAGS));
+        deployCodeTo("UnistrataHook.sol:UnistrataHook", args, HOOK_FLAGS);
+        hook = UnistrataHook(payable(HOOK_FLAGS));
 
         poolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(hook));
         poolId = poolKey.toId();
     }
 
     function test_construction_deploysTrancheTokens() public view {
-        assertEq(hook.senior().symbol(), "sSTR");
-        assertEq(hook.junior().symbol(), "jSTR");
-        assertEq(hook.senior().hook(), address(hook));
-        assertEq(hook.junior().hook(), address(hook));
-        assertEq(hook.senior().decimals(), 18);
+        assertEq(hook.bedrock().symbol(), "BEDR");
+        assertEq(hook.sediment().symbol(), "SEDI");
+        assertEq(hook.bedrock().hook(), address(hook));
+        assertEq(hook.sediment().hook(), address(hook));
+        assertEq(hook.bedrock().decimals(), 18);
     }
 
     function test_getHookPermissions_correctFlags() public view {
@@ -101,7 +101,7 @@ contract StrataHookFoundationTest is BaseTest {
         ModifyLiquidityParams memory params =
             ModifyLiquidityParams({tickLower: -887220, tickUpper: 887220, liquidityDelta: 1e18, salt: 0});
         vm.prank(address(poolManager));
-        vm.expectRevert(StrataHook.StrataHook__OnlyHookLiquidity.selector);
+        vm.expectRevert(UnistrataHook.UnistrataHook__OnlyHookLiquidity.selector);
         hook.beforeAddLiquidity(address(0xBEEF), poolKey, params, "");
     }
 

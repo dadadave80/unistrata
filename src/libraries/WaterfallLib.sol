@@ -4,14 +4,14 @@ pragma solidity ^0.8.30;
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title WaterfallLib
-/// @notice Pure settlement math for the Strata senior/junior tranche waterfall and the
-///         variance-priced senior coupon (STRATA_BUILD_BRIEF §3.4 + §3.5). No storage, no
+/// @notice Pure settlement math for the Unistrata bedrock/sediment tranche waterfall and the
+///         variance-priced bedrock coupon (UNISTRATA_BUILD_BRIEF §3.4 + §3.5). No storage, no
 ///         external calls — unit-testable in isolation and the load-bearing math behind
 ///         invariants 1 (conservation), 2 (seniority) and 3 (coupon honesty).
 /// @dev Units: rates are WAD (1e18) APR fractions; values are WAD numéraire amounts. The
-///      σ²/8 loss-versus-rebalancing coefficient is folded into the senior coupon's IL reserve.
+///      σ²/8 loss-versus-rebalancing coefficient is folded into the bedrock coupon's IL reserve.
 ///      Rounding rule (§3.5): round in favor of the protocol / remaining LPs, against the actor —
-///      the IL reserve rounds UP (lower coupon) and senior accrual rounds DOWN (no over-crediting).
+///      the IL reserve rounds UP (lower coupon) and bedrock accrual rounds DOWN (no over-crediting).
 library WaterfallLib {
     /// @notice Thrown when the coupon clamp bounds are misconfigured (rMin > rMax).
     error WaterfallLib__InvalidRateBounds();
@@ -24,13 +24,13 @@ library WaterfallLib {
     //                                COUPON PRICING
     //////////////////////////////////////////////////////////////////////////*//
 
-    /// @notice Variance-priced senior coupon: `r = clamp(feeYieldEwma − λ·σ²/8, rMin, rMax)`.
+    /// @notice Variance-priced bedrock coupon: `r = clamp(feeYieldEwma − λ·σ²/8, rMin, rMax)`.
     /// @param feeYieldEwma  EWMA of annualized fee yield (WAD APR).
     /// @param sigma2Ewma    EWMA of annualized realized variance σ² (WAD).
     /// @param lambdaRisk    Risk loading λ (WAD; default 1.25e18 = 25% safety margin).
     /// @param rMin          Lower clamp (WAD APR; default 0).
     /// @param rMax          Upper clamp (WAD APR; default 0.5e18 = 50% APR).
-    /// @return r            The senior tranche's fixed coupon for the epoch (WAD APR).
+    /// @return r            The bedrock tranche's fixed coupon for the epoch (WAD APR).
     function couponRate(uint256 feeYieldEwma, uint256 sigma2Ewma, uint256 lambdaRisk, uint256 rMin, uint256 rMax)
         internal
         pure
@@ -38,7 +38,7 @@ library WaterfallLib {
     {
         if (rMin > rMax) revert WaterfallLib__InvalidRateBounds();
 
-        // IL reserve = λ·σ²/8, rounded UP so the senior is never over-paid (favors protocol/junior).
+        // IL reserve = λ·σ²/8, rounded UP so the bedrock is never over-paid (favors protocol/sediment).
         uint256 reserve = Math.mulDiv(lambdaRisk, sigma2Ewma, 8 * WAD, Math.Rounding.Ceil);
 
         // Saturating subtraction before the clamp: a reserve exceeding fee yield floors at 0.
@@ -51,16 +51,16 @@ library WaterfallLib {
     //                              SETTLEMENT WATERFALL
     //////////////////////////////////////////////////////////////////////////*//
 
-    /// @notice Senior target value after one epoch:
-    ///         `sTarget = sPrev·(1 + r·Δt/year) + seniorNetDeposits`, floored at 0.
+    /// @notice Bedrock target value after one epoch:
+    ///         `sTarget = sPrev·(1 + r·Δt/year) + bedrockNetDeposits`, floored at 0.
     /// @dev Accrual uses a two-step FullMath chain (`floor(floor(sPrev·r/WAD)·Δt/year)`) — every
     ///      intermediate stays ≤ 2^256 with no precision loss, and the floor enforces coupon
-    ///      honesty (invariant 3: senior growth ≤ r·Δt, never over-credited).
-    /// @param sPrev              Senior value at the end of the previous epoch (WAD).
-    /// @param rEpoch             Senior coupon for this epoch (WAD APR), from {couponRate}.
+    ///      honesty (invariant 3: bedrock growth ≤ r·Δt, never over-credited).
+    /// @param sPrev              Bedrock value at the end of the previous epoch (WAD).
+    /// @param rEpoch             Bedrock coupon for this epoch (WAD APR), from {couponRate}.
     /// @param dt                 Epoch length in seconds.
-    /// @param seniorNetDeposits  Net senior principal flow this epoch (signed WAD; >0 deposits, <0 withdrawals).
-    function seniorTarget(uint256 sPrev, uint256 rEpoch, uint256 dt, int256 seniorNetDeposits)
+    /// @param bedrockNetDeposits  Net bedrock principal flow this epoch (signed WAD; >0 deposits, <0 withdrawals).
+    function bedrockTarget(uint256 sPrev, uint256 rEpoch, uint256 dt, int256 bedrockNetDeposits)
         internal
         pure
         returns (uint256 sTarget)
@@ -68,24 +68,24 @@ library WaterfallLib {
         uint256 accrual = Math.mulDiv(Math.mulDiv(sPrev, rEpoch, WAD), dt, SECONDS_PER_YEAR);
         uint256 base = sPrev + accrual;
 
-        if (seniorNetDeposits >= 0) {
-            sTarget = base + uint256(seniorNetDeposits);
+        if (bedrockNetDeposits >= 0) {
+            sTarget = base + uint256(bedrockNetDeposits);
         } else {
-            uint256 outflow = uint256(-seniorNetDeposits);
+            uint256 outflow = uint256(-bedrockNetDeposits);
             sTarget = base > outflow ? base - outflow : 0;
         }
     }
 
-    /// @notice Split total assets `A` between senior and junior at the senior target.
-    /// @dev Senior is paid first up to its target; junior absorbs the residual (and the loss).
+    /// @notice Split total assets `A` between bedrock and sediment at the bedrock target.
+    /// @dev Bedrock is paid first up to its target; sediment absorbs the residual (and the loss).
     ///      `sNew + jNew == A` exactly (invariant 1). `impaired` is the brief's literal §3.5 step-4
     ///      flag; callers holding `sPrev` should refine it to true principal loss (`A < sPrev`) for
     ///      event semantics.
     /// @param A        Total mark-to-market assets in numéraire (WAD).
-    /// @param sTarget  Senior target from {seniorTarget}.
-    /// @return sNew    New senior value = min(A, sTarget).
-    /// @return jNew    New junior value = A − sNew.
-    /// @return impaired True when junior is exhausted and senior fell short of target.
+    /// @param sTarget  Bedrock target from {bedrockTarget}.
+    /// @return sNew    New bedrock value = min(A, sTarget).
+    /// @return jNew    New sediment value = A − sNew.
+    /// @return impaired True when sediment is exhausted and bedrock fell short of target.
     function settle(uint256 A, uint256 sTarget) internal pure returns (uint256 sNew, uint256 jNew, bool impaired) {
         sNew = A < sTarget ? A : sTarget;
         jNew = A - sNew;

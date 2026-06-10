@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title VarianceLib
-/// @notice Pure math for Strata's in-hook, oracle-free realized-variance measure (brief §3.3).
+/// @notice Pure math for Unistrata's in-hook, oracle-free realized-variance measure (brief §3.3).
 ///         (1) {observe} samples the pool's own tick path once per block, accumulating capped
 ///         squared tick-deltas into `varAcc`; (2) {annualizedVariance} converts `varAcc` into an
 ///         annualized σ² (WAD) via the constant ln(1.0001)²; (3) {ewma} is the shared WAD EWMA for
@@ -41,7 +41,7 @@ library VarianceLib {
     /// @return newBlock          Updated last-observed block.
     /// @return newTick           Updated last-observed tick.
     /// @return newVarAcc         Updated accumulator (`varAcc + min(d², dCap²)`).
-    /// @return blockTickDelta    Signed block-to-block tick delta `d` (for the StrataObservation event).
+    /// @return blockTickDelta    Signed block-to-block tick delta `d` (for the UnistrataObservation event).
     /// @return counted           True iff a new block advanced the pair.
     function observe(
         uint48 lastObservedBlock,
@@ -76,8 +76,8 @@ library VarianceLib {
 
     /// @notice Annualized realized variance σ² (WAD) from a per-epoch `varAcc` over `elapsedTime`.
     /// @dev σ² = varAcc · ln(1.0001)² · SECONDS_PER_YEAR / elapsedTime. Rounds **up** (protocol-safe):
-    ///      a larger measured σ² yields a larger IL reserve and thus a lower senior coupon, favoring
-    ///      the junior underwriter and protocol solvency.
+    ///      a larger measured σ² yields a larger IL reserve and thus a lower bedrock coupon, favoring
+    ///      the sediment underwriter and protocol solvency.
     /// @param varAcc       Per-epoch variance accumulator (delta over the epoch).
     /// @param elapsedTime  Epoch length in seconds (must be > 0).
     function annualizedVariance(uint256 varAcc, uint256 elapsedTime) internal pure returns (uint256 sigma2Wad) {

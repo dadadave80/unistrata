@@ -1,6 +1,8 @@
-# Strata — Uniswap v4 IL Tranching Hook
+# Unistrata — Uniswap v4 IL Tranching Hook
 
-> Built on the [Uniswap v4 Hook Template](https://github.com/Uniswap/v4-template) (template docs preserved below). See `STRATA_BUILD_BRIEF.md` for the product spec.
+> Built on the [Uniswap v4 Hook Template](https://github.com/Uniswap/v4-template) (template docs preserved below). See `UNISTRATA_BUILD_BRIEF.md` for the product spec.
+
+**Tranches:** **Bedrock** = senior tranche — shielded, earns a fixed variance-priced coupon (the floor). **Sediment** = junior / first-loss tranche — underwrites the volatility, absorbs the impermanent loss, keeps the upside.
 
 ## Pinned dependencies (Phase 0)
 

@@ -1,32 +1,21 @@
-# STRATA — Progress Log
+# UNISTRATA — Progress Log
 
-Running log per `STRATA_BUILD_BRIEF.md` §0. Tracks what's done, what's blocked, and any
+Running log per `UNISTRATA_BUILD_BRIEF.md` §0. Tracks what's done, what's blocked, and any
 deviations from the plan (with reasons). Newest status at the top of each phase.
 
-**Branch:** `feat/strata` (off `main`).
+**Branch:** `feat/unistrata` (off `main`).
 **Session scope (current):** Phases 0 → 3 (full on-chain core), orchestrated with workflows + subagents.
 
 ---
 
-## Live testnet deployment (Phase 4 — verified on-chain 2026-06-11)
+## Live testnet deployment (Phase 4)
 
-Full stack deployed AND subscribed end-to-end (addresses in `.env`; receipts under `broadcast/`):
-
-| Contract | Chain | Address |
-|---|---|---|
-| tWETH (18) | Unichain Sepolia 1301 | `0xf8075E9DE8E8D27F98D5C78Be26CEbceEd6f9A79` |
-| tUSDC (6) | Unichain Sepolia 1301 | `0x72cfA7f9DfA38975f4ed4AcF86f67D6E490a52d8` |
-| StrataHook | Unichain Sepolia 1301 | `0xBC0ca5604FBdb2d484A2169f3841e54F69649840` (deploy `0xc3e27753…`, pool init `0xbbb4d48d…`) |
-| StrataReactive | Lasna 5318007 | `0xdDB7921Eb8FA43bcdDD12597ED9068a795a418FF` (deploy `0x9b83b0a5…`) |
-
-The RSC deploy tx emitted **two `Subscribe` events** (system contract `0x…ffffff`) and **zero
-`SubscribeFailed`** → the constructor's try/catch subscribed on-chain in one broadcast: (1) CRON on
-5318007, (2) StrataObservation from the hook on **1301** — proving Unichain Sepolia is an accepted Lasna
-origin chain.
-
-**Funded** via one multichain `03_FundAndSubscribe` run (both legs status `0x1`): hook debt prefund
-`depositTo` on 1301 (`0x71a2ac47…`, 0.05 ETH) + RSC top-up on 5318007 (`0x8b6040f3…`, 5 REACT; balance
-0 → 5). Remaining: capture the heartbeat + spike tx trails.
+**Redeploying fresh as Unistrata.** An earlier pilot under the working name *Strata* validated the full
+flow on-chain (mechanism proven; only addresses change): the RSC deploy emitted **two `Subscribe` events**
++ **zero `SubscribeFailed`** (CRON on `5318007` + the hook's observation event on `1301` — proving Unichain
+Sepolia is an accepted Lasna origin chain), and one multichain `03` run funded both legs (both `0x1`). Fresh
+Unistrata addresses + the heartbeat/spike tx trail recorded here post-redeploy; pilot receipts remain under
+`broadcast/`.
 
 ---
 
@@ -34,7 +23,7 @@ origin chain.
 
 - **2026-06-10 — "Phase 0 done" memory was stale.** A prior session's memory claimed Phase 0
   complete (2026-06-09), but the working tree was at the bare v4-template (only `src/Counter.sol`,
-  no `PROGRESS.md`, no Strata code, no `reactive-lib`, no §4 skeleton). Treating Phase 0 as
+  no `PROGRESS.md`, no Unistrata code, no `reactive-lib`, no §4 skeleton). Treating Phase 0 as
   **not started** and rebuilding from the verified scaffold. Memory will be corrected.
 
 ---
@@ -54,7 +43,7 @@ origin chain.
 all resolve under `lib/uniswap-hooks/lib/`. `HookMiner` lives in v4-periphery (`src/utils/HookMiner.sol`).
 
 **solc decision (resolved):** pinned to **0.8.34** + `optimizer_runs = 999_999`. Deployed contracts
-(`StrataHook`, `TrancheToken`, `StrataReactive`, `ReentrancyGuardTransient`) use a **strict** pragma
+(`UnistrataHook`, `TrancheToken`, `UnistrataReactive`, `ReentrancyGuardTransient`) use a **strict** pragma
 `0.8.34`; libraries/tests/scripts stay floating `^0.8.30` (skill-correct). 0.8.34 is the SOL-2026-1
 floor, which matters now that the hook uses transient storage (the reentrancy guard).
 
@@ -79,7 +68,7 @@ Still open (deferred per user): nothing material — BTT `.tree` artifacts and p
       `abstract-base/{AbstractReactive,AbstractCallback,AbstractPayer,AbstractPausableReactive}.sol`,
       `interfaces/IReactive.sol` (`react(LogRecord)`, `topic_0`).
 - [ ] (d) Remove template example hook (`Counter.sol`/`Counter.t.sol`) — **deferred** to end of Phase 1
-      so the suite stays green until `StrataHook` + tests replace them. `test/utils/` (BaseTest,
+      so the suite stays green until `UnistrataHook` + tests replace them. `test/utils/` (BaseTest,
       Deployers, EasyPosm) and HookMiner usage are **kept** — the reusable parts.
 
 **Phase 0 gate:** ✅ **PASS** — §4 skeleton + CI in place, `reactive-lib` installed + remapped,
@@ -115,7 +104,7 @@ PositionManager `0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4` · StateView `0xE1D
   during `forge script`'s local execution because reactive-lib's `SystemLib.getSystemContractImpl()` calls
   the **node-only precompile at `0x64`**, which does NOT exist in Foundry's local EVM — so it returns empty
   and the `require(success && ret.length==0x20)` reverts. This is a Foundry-simulation limitation, **not** a
-  contract bug or a stale node: the same call works on a real Lasna node. Fix: `StrataReactive`'s constructor
+  contract bug or a stale node: the same call works on a real Lasna node. Fix: `UnistrataReactive`'s constructor
   wraps each `subscribe` in try/catch (emitting `SubscribeFailed`) so one `forge script --broadcast` both
   deploys AND subscribes — the catch only triggers in local sim; the broadcast tx subscribes on-chain.
 - **Callback Proxy on Unichain Sepolia (1301):** `0x9299472A6399Fd1027ebF067571Eb3e3D7837FC4` — pass to
@@ -159,7 +148,7 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
 ## Phase 1 — Vault core · ✅ complete
 - [x] `TrancheToken` — minimal ERC-20 (OZ 5.0.2 base), 18 dec, mint/burn restricted to hook via
       `onlyHook`. TDD: 6 unit tests (constructor/metadata, hook-gated mint+burn, non-hook reverts,
-      fuzzed mint). One instance per tranche (sSTR / jSTR).
+      fuzzed mint). One instance per tranche (BEDR / SEDI).
 - [x] `NavLib` — pure mark-to-market valuation primitives (TDD, **14 tests**). `fullRangeBounds`
       (tickSpacing-aligned, returns ticks + sqrtPrices); `getPositionTokenAmounts` (delegates to
       canonical v4-core `LiquidityAmounts`, imported in place); `valueInNumeraire` (cross-token pricing
@@ -167,23 +156,23 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
       `toWad` (USDC6 ×1e12 exact). Stateful `totalAssets(manager,…)` orchestrator **deferred to hook
       integration** (reads live PoolManager slot0/position/fee-growth; critic's fee/idle double-count
       concerns resolve there with a real pool).
-- [~] `StrataHook` — **foundation done** (TDD, **6 hook tests** vs local PoolManager): construction +
-      tranche tokens (sSTR/jSTR), `getHookPermissions` (afterInitialize|afterSwap|beforeAddLiquidity),
+- [~] `UnistrataHook` — **foundation done** (TDD, **6 hook tests** vs local PoolManager): construction +
+      tranche tokens (BEDR/SEDI), `getHookPermissions` (afterInitialize|afterSwap|beforeAddLiquidity),
       **single-pool binding** + variance seeding in `afterInitialize`, **external-LP guard** in
       `beforeAddLiquidity`. `Config` struct exposes all governance dials.
   - [x] **deposit** (both tranches) → `unlock` → `modifyLiquidity` (full-range add) → settle from
         depositor (`CurrencySettler`) → mint at NAV. TDD, **7 hook tests** vs local PoolManager.
   - [x] attachment-point cap (θ_max), dead-shares guard (1000 to 0xdead), `totalAssets()` view
-        (matches tracked NAV ≤5 wei), `seniorCapacityRemaining()`.
-  - [x] **withdrawal queue** — `requestWithdraw` escrows shares; epoch lockup (senior +1, junior +2);
+        (matches tracked NAV ≤5 wei), `bedrockCapacityRemaining()`.
+  - [x] **withdrawal queue** — `requestWithdraw` escrows shares; epoch lockup (bedrock +1, sediment +2);
         `claim` removes the withdrawer's share-proportional slice of position + idle, burns shares,
         reduces NAV (NAV/share preserved). TDD, **6 tests**. ✅
-  - [x] **`afterSwap` variance wiring** — per-block `VarianceLib.observe` + `StrataObservation` event.
+  - [x] **`afterSwap` variance wiring** — per-block `VarianceLib.observe` + `UnistrataObservation` event.
         TDD, **5 hook tests** (once-per-block, cap binds at dCap²=1e6, same-block no-op, bounded). ✅
         Fee-growth snapshot folds in with `settleEpoch`.
 
 > **Milestone — pure-math foundation complete.** All 3 §4 libraries done & TDD-covered (Waterfall 21,
-> Variance 20, Nav 14) + TrancheToken (6). 69 tests green. Next: the `StrataHook` that composes them
+> Variance 20, Nav 14) + TrancheToken (6). 69 tests green. Next: the `UnistrataHook` that composes them
 > (Phase 1 vault + Phase 2 afterSwap + Phase 3 settleEpoch), integration-tested vs a local PoolManager.
 
 ## Phase 2 — Variance oracle · ✅ complete
@@ -192,20 +181,20 @@ cleared. Keep pre-funded with native gas on Unichain Sepolia.
       `blockTickDelta` for the event); `annualizedVariance` (`LN_BASE_SQ_WAD = 9_999_000_092`, **true**
       annualization ×SECONDS_PER_YEAR, **round-UP** protocol-safe, zero-elapsed revert); `ewma`
       (two-term overflow-safe, λ∈[0,1e18]). Critique's 3 HIGH fixes folded in before impl.
-- [ ] `afterSwap` wiring in StrataHook: per-block `observe`, `StrataObservation` event, fee-growth snapshots.
+- [ ] `afterSwap` wiring in UnistrataHook: per-block `observe`, `UnistrataObservation` event, fee-growth snapshots.
 
-**Hook contract (from critique):** `varAcc` is cumulative; `StrataHook` must snapshot it at epoch start
+**Hook contract (from critique):** `varAcc` is cumulative; `UnistrataHook` must snapshot it at epoch start
 and pass the per-epoch delta to `annualizedVariance`, and must seed `(block, tick)` in `afterInitialize`.
 ## Phase 3 — Settlement waterfall · ✅ complete
 - [x] `WaterfallLib` — pure coupon pricing + settlement math (TDD, **21 tests**). `couponRate`
-      (clamp, ceil-rounded reserve λ·σ²/8, `InvalidRateBounds` guard); `seniorTarget` (two-step
+      (clamp, ceil-rounded reserve λ·σ²/8, `InvalidRateBounds` guard); `bedrockTarget` (two-step
       FullMath accrual, signed net deposits, floor-at-0, coupon-honesty floor); `settle` (min-split,
       exact conservation, literal impairment flag). Design cross-checked by lib-design workflow's
       adversarial critic (reconciled before impl: single-step ceil reserve, two-step accrual, bounds guard).
-- [x] **`settleEpoch`** in StrataHook — mark-to-market, waterfall split, price guard (GUARD_BAND),
-      fee collection via poke, epoch roll + coupon reprice, **two impairment events** (`SeniorImpaired`
-      on principal loss `A<sPrev`, else `SeniorBelowCoupon`), `EpochSettled`. TDD, **6 integration tests**
-      (conservation, coupon honesty, junior-absorbs-IL/senior-protected, reprice, guard revert, not-elapsed). ✅
+- [x] **`settleEpoch`** in UnistrataHook — mark-to-market, waterfall split, price guard (GUARD_BAND),
+      fee collection via poke, epoch roll + coupon reprice, **two impairment events** (`BedrockImpaired`
+      on principal loss `A<sPrev`, else `BedrockBelowCoupon`), `EpochSettled`. TDD, **6 integration tests**
+      (conservation, coupon honesty, sediment-absorbs-IL/bedrock-protected, reprice, guard revert, not-elapsed). ✅
 - [x] withdrawal-queue settlement — done (epoch-locked request/claim, see Phase 1 above).
 - [x] **Formal stateful-invariant harness** (`test/invariant/`): handler does random deposit/swap/settle;
       ~7.7k calls/invariant, ~1.9k settlements, 0 reverts. Asserts **inv. 1 (conservation)** + **inv. 2
@@ -213,24 +202,24 @@ and pass the per-epoch delta to `annualizedVariance`, and must seed `(block, tic
       `[invariant]` config added (runs=256/depth=30; CI cranks to ~10k). ✅
 
 **Open design note (Phase 3 gate review):** the brief's literal impairment flag fires for both
-full-junior-wipe-without-loss and true senior principal loss. `WaterfallLib.settle` returns the literal
-flag; `StrataHook` (holds `sPrev`) will distinguish `A < sPrev` for `SeniorImpaired` event semantics.
+full-sediment-wipe-without-loss and true bedrock principal loss. `WaterfallLib.settle` returns the literal
+flag; `UnistrataHook` (holds `sPrev`) will distinguish `A < sPrev` for `BedrockImpaired` event semantics.
 Confirm desired event taxonomy at Phase 3 review.
 
 ## Phase 4 — Reactive integration · 🟡 contracts + scripts done (testnet run pending)
-- [x] **Hook-side callback auth** — `StrataHook` is an `AbstractCallback`; `settleEpoch(address)`
+- [x] **Hook-side callback auth** — `UnistrataHook` is an `AbstractCallback`; `settleEpoch(address)`
       (heartbeat) + `emergencySettle(address)` (early) are proxy-only (`authorizedSenderOnly` +
       `rvmIdOnly`); permissionless `settleEpoch()` fallback after epoch + grace. TDD, **7 tests**.
-- [x] **`StrataReactive` RSC** — CRON heartbeat (counter, once per epoch) + variance-spike circuit
+- [x] **`UnistrataReactive` RSC** — CRON heartbeat (counter, once per epoch) + variance-spike circuit
       breaker (`emergencySettle`), emits cross-chain `Callback`s; subscriptions in constructor.
       TDD, **6 react() tests** (local via vm-detection).
-- [x] **Deploy/fund/subscribe scripts** (`script/strata/{00_DeployMockTokens,01_DeployStrata,
+- [x] **Deploy/fund/subscribe scripts** (`script/unistrata/{00_DeployMockTokens,01_DeployUnistrata,
       02_DeployReactive,03_FundAndSubscribe}`) + **`REACTIVE.md` runbook** (verified addresses, sequence,
       funding, demo capture).
 - [x] **Pool tokens decided: demo mocks tWETH (18) + tUSDC (6)**, USDC = numéraire. `DemoERC20`
-      (mintable) + `StrataDeploy` lib derives token0/token1 ordering, decimals, numéraire flag and
+      (mintable) + `UnistrataDeploy` lib derives token0/token1 ordering, decimals, numéraire flag and
       init sqrt-price (1 WETH = 3000 USDC) from the real addresses — closes the §7 decimals/ordering
-      footguns. Proven by `StrataMixedDecimals.t.sol`: a ~$12k deposit reads as ~12,000e18 WAD (a
+      footguns. Proven by `UnistrataMixedDecimals.t.sol`: a ~$12k deposit reads as ~12,000e18 WAD (a
       decimals mis-wire would be off by ~1e12). **124 tests.**
 - [ ] **End-to-end testnet run** (user-executed): recorded 3-hop tx trail for heartbeat AND spike.
       Needs funded keys on Unichain Sepolia + Lasna. This artifact goes in the README/video.
@@ -240,8 +229,8 @@ Confirm desired event taxonomy at Phase 3 review.
       `PoolManager.swap` (the v4 router doesn't expose price limits), triggering `afterSwap` variance.
 - [x] **`SimReplay.t.sol`** — replays `sim/paths/<scenario>.json` (calm / trend / crash, deterministic
       GBM) as swaps, settles epochs on schedule, exports `sim/out/<scenario>.json` per-epoch metrics,
-      and asserts conservation + senior-protection under the path. 3 scenarios, 119 tests total.
-- [x] **The money chart** (crash): senior NAV flat at 600 through a ~44% swing; junior absorbs the
+      and asserts conservation + bedrock-protection under the path. 3 scenarios, 119 tests total.
+- [x] **The money chart** (crash): bedrock NAV flat at 600 through a ~44% swing; sediment absorbs the
       gap (970 → 595 → 715); vanillaLP < HODL (IL visible). ✅ brief §5 acceptance met.
 - [x] Output schema defined (the Phase-6 contract) — documented atop `SimReplay.t.sol`; WAD-integer
       strings. Outputs committed (un-ignored) so the frontend's replay mode needs zero tooling.
@@ -253,8 +242,8 @@ Confirm desired event taxonomy at Phase 3 review.
 ## Invariants to encode (brief §6) — tracking
 
 1. Conservation: `S_nav + J_nav == totalAssets` post-settlement (± bounded dust).
-2. Seniority: senior NAV/share non-decreasing between settlements while junior NAV > 0.
-3. Coupon honesty: senior growth/epoch ≤ `r_epoch × Δt` exactly.
+2. Seniority: bedrock NAV/share non-decreasing between settlements while sediment NAV > 0.
+3. Coupon honesty: bedrock growth/epoch ≤ `r_epoch × Δt` exactly.
 4. Share fairness: deposit→next-epoch withdraw never yields > deposited + accrued.
 5. Variance sanity: `varAcc` per epoch ≤ `blocks × D_CAP²`.
 6. Access: settle callable only by callback proxy before `epochEnd + GRACE`, by anyone after.

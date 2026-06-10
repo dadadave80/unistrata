@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {EnvWriter} from "../../script/strata/EnvWriter.sol";
+import {EnvWriter} from "../../script/unistrata/EnvWriter.sol";
 import {Test} from "forge-std/Test.sol";
 
 /// @notice Validates the deploy scripts' `.env` upsert: create, append, idempotent replace, and
@@ -34,8 +34,8 @@ contract EnvWriterTest is Test {
         _fresh(path);
 
         vm.writeFile(path, "# rpc config\nUNICHAIN_SEPOLIA_URL=https://example\n");
-        EnvWriter.upsert(path, "STRATA_HOOK", "0xHOOK");
-        assertEq(vm.readFile(path), "# rpc config\nUNICHAIN_SEPOLIA_URL=https://example\nSTRATA_HOOK=0xHOOK\n");
+        EnvWriter.upsert(path, "UNISTRATA_HOOK", "0xHOOK");
+        assertEq(vm.readFile(path), "# rpc config\nUNICHAIN_SEPOLIA_URL=https://example\nUNISTRATA_HOOK=0xHOOK\n");
 
         vm.removeFile(path);
     }

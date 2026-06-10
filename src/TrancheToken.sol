@@ -5,7 +5,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title TrancheToken
 /// @author David Dada (https://github.com/dadadave80)
-/// @notice Minimal ERC-20 share token for a Strata tranche (sSTR / jSTR). Minting and burning
+/// @notice Minimal ERC-20 share token for a Unistrata tranche (BEDR / SEDI). Minting and burning
 ///         are restricted to the controlling hook, which is the sole authority over supply: shares
 ///         are minted on deposit at NAV and burned on settled withdrawal.
 /// @dev 18 decimals (OZ default). One instance is deployed per tranche by the hook.

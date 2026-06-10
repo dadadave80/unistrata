@@ -11,19 +11,19 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {Constants} from "v4-core/test/utils/Constants.sol";
 
 import {BaseTest} from "../utils/BaseTest.sol";
-import {StrataHook} from "src/StrataHook.sol";
+import {UnistrataHook} from "src/UnistrataHook.sol";
 
 /// @notice Phase-4 hook-side auth: the Reactive callback proxy may settle on schedule
 /// (settleEpoch(address)) or fire the early circuit breaker (emergencySettle(address)); a
 /// permissionless fallback settles only after epoch + grace. rvm-id and sender are enforced.
-contract StrataReactiveAuthTest is BaseTest {
+contract UnistrataReactiveAuthTest is BaseTest {
     using PoolIdLibrary for PoolKey;
 
     Currency internal currency0;
     Currency internal currency1;
     PoolKey internal poolKey;
     PoolId internal poolId;
-    StrataHook internal hook;
+    UnistrataHook internal hook;
 
     address internal alice = makeAddr("alice");
     address internal constant CALLBACK_PROXY = address(0xCA11);
@@ -33,8 +33,8 @@ contract StrataReactiveAuthTest is BaseTest {
         uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x5556 << 144)
     );
 
-    function _cfg() internal pure returns (StrataHook.Config memory) {
-        return StrataHook.Config({
+    function _cfg() internal pure returns (UnistrataHook.Config memory) {
+        return UnistrataHook.Config({
             numeraireIsToken1: true,
             decimals0: 18,
             decimals1: 18,
@@ -53,8 +53,8 @@ contract StrataReactiveAuthTest is BaseTest {
     function setUp() public {
         deployArtifactsAndLabel();
         (currency0, currency1) = deployCurrencyPair();
-        deployCodeTo("StrataHook.sol:StrataHook", abi.encode(poolManager, _cfg(), CALLBACK_PROXY), HOOK_FLAGS);
-        hook = StrataHook(payable(HOOK_FLAGS));
+        deployCodeTo("UnistrataHook.sol:UnistrataHook", abi.encode(poolManager, _cfg(), CALLBACK_PROXY), HOOK_FLAGS);
+        hook = UnistrataHook(payable(HOOK_FLAGS));
         rvmId = address(this); // deployCodeTo runs the ctor with msg.sender == this test
 
         poolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(hook));
@@ -98,7 +98,7 @@ contract StrataReactiveAuthTest is BaseTest {
     function test_emergencySettle_byProxy_earlySettles() public {
         uint256 e0 = hook.epochId();
         vm.expectEmit(true, false, false, false, address(hook));
-        emit StrataHook.EmergencySettled(e0);
+        emit UnistrataHook.EmergencySettled(e0);
         vm.prank(CALLBACK_PROXY);
         hook.emergencySettle(rvmId);
         assertEq(hook.epochId(), e0 + 1); // settled despite the epoch not having elapsed
@@ -113,7 +113,7 @@ contract StrataReactiveAuthTest is BaseTest {
     // permissionless fallback is gated on epoch + grace
     function test_permissionlessSettle_RevertWhen_beforeGrace() public {
         vm.warp(block.timestamp + 1 days + 1); // epoch elapsed but grace not yet
-        vm.expectRevert(StrataHook.StrataHook__EpochNotElapsed.selector);
+        vm.expectRevert(UnistrataHook.UnistrataHook__EpochNotElapsed.selector);
         hook.settleEpoch();
     }
 

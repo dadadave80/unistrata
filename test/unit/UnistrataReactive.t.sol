@@ -4,12 +4,12 @@ pragma solidity ^0.8.30;
 import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {IReactive} from "reactive-lib/interfaces/IReactive.sol";
-import {StrataReactive} from "src/reactive/StrataReactive.sol";
+import {UnistrataReactive} from "src/reactive/UnistrataReactive.sol";
 
 /// @notice Unit tests for the RSC's react() dispatch: CRON heartbeat → settleEpoch, variance spike →
 /// emergencySettle. Deployed locally (no system contract ⇒ vm==true ⇒ subscriptions skipped, react callable).
-contract StrataReactiveTest is Test {
-    StrataReactive internal rsc;
+contract UnistrataReactiveTest is Test {
+    UnistrataReactive internal rsc;
 
     uint256 internal constant ORIGIN_CHAIN = 1301; // Unichain Sepolia
     address internal constant HOOK = address(0x57A7A);
@@ -21,7 +21,7 @@ contract StrataReactiveTest is Test {
     bytes32 internal constant CALLBACK_SIG = keccak256("Callback(uint256,address,uint64,bytes)");
 
     function setUp() public {
-        rsc = new StrataReactive(ORIGIN_CHAIN, HOOK, CRON_TOPIC, TICKS_PER_EPOCH, SPIKE_THRESHOLD, GAS_LIMIT);
+        rsc = new UnistrataReactive(ORIGIN_CHAIN, HOOK, CRON_TOPIC, TICKS_PER_EPOCH, SPIKE_THRESHOLD, GAS_LIMIT);
     }
 
     function _cronLog() internal pure returns (IReactive.LogRecord memory log) {
@@ -31,7 +31,7 @@ contract StrataReactiveTest is Test {
     function _obsLog(uint256 varAcc) internal view returns (IReactive.LogRecord memory log) {
         log.chain_id = ORIGIN_CHAIN;
         log._contract = HOOK;
-        log.topic_0 = rsc.STRATA_OBSERVATION_TOPIC();
+        log.topic_0 = rsc.UNISTRATA_OBSERVATION_TOPIC();
         log.data = abi.encode(int24(100), varAcc);
     }
 
@@ -102,7 +102,7 @@ contract StrataReactiveTest is Test {
     // subscribeAll (the owner-only on-chain retry) rejects non-owners before touching the system contract
     function test_subscribeAll_revertsForNonOwner() public {
         vm.prank(address(0xBEEF));
-        vm.expectRevert(StrataReactive.StrataReactive__NotOwner.selector);
+        vm.expectRevert(UnistrataReactive.UnistrataReactive__NotOwner.selector);
         rsc.subscribeAll();
     }
 

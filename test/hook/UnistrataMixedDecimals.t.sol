@@ -9,22 +9,22 @@ import {Currency} from "v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 
-import {DemoERC20} from "../../script/strata/DemoERC20.sol";
-import {StrataDeploy} from "../../script/strata/StrataDeploy.sol";
+import {DemoERC20} from "../../script/unistrata/DemoERC20.sol";
+import {UnistrataDeploy} from "../../script/unistrata/UnistrataDeploy.sol";
 import {BaseTest} from "../utils/BaseTest.sol";
-import {StrataHook} from "src/StrataHook.sol";
+import {UnistrataHook} from "src/UnistrataHook.sol";
 
 /// @notice Proves the real demo token setup — tWETH (18 dec) + tUSDC (6 dec), USDC as numéraire,
 /// pool initialized at 1 WETH = 3000 USDC — values correctly. If decimals or the numéraire flag
 /// were mis-wired, NAV would be off by ~1e12; these assertions catch that.
-contract StrataMixedDecimalsTest is BaseTest {
+contract UnistrataMixedDecimalsTest is BaseTest {
     using PoolIdLibrary for PoolKey;
 
     DemoERC20 internal weth;
     DemoERC20 internal usdc;
     PoolKey internal poolKey;
     PoolId internal poolId;
-    StrataHook internal hook;
+    UnistrataHook internal hook;
 
     address internal alice = makeAddr("alice");
     uint256 internal constant PRICE = 3000; // tUSDC per tWETH
@@ -40,9 +40,9 @@ contract StrataMixedDecimalsTest is BaseTest {
 
         // Derive ordering / decimals / numéraire from the real addresses (USDC is the numéraire).
         (Currency c0, Currency c1, uint8 dec0, uint8 dec1, bool numeraireIsToken1) =
-            StrataDeploy.orderTokens(address(weth), 18, address(usdc), 6, address(usdc));
+            UnistrataDeploy.orderTokens(address(weth), 18, address(usdc), 6, address(usdc));
 
-        StrataHook.Config memory cfg = StrataHook.Config({
+        UnistrataHook.Config memory cfg = UnistrataHook.Config({
             numeraireIsToken1: numeraireIsToken1,
             decimals0: dec0,
             decimals1: dec1,
@@ -57,16 +57,16 @@ contract StrataMixedDecimalsTest is BaseTest {
             thetaMax: 0.75e18
         });
 
-        deployCodeTo("StrataHook.sol:StrataHook", abi.encode(poolManager, cfg, address(0xCA11)), HOOK_FLAGS);
-        hook = StrataHook(payable(HOOK_FLAGS));
+        deployCodeTo("UnistrataHook.sol:UnistrataHook", abi.encode(poolManager, cfg, address(0xCA11)), HOOK_FLAGS);
+        hook = UnistrataHook(payable(HOOK_FLAGS));
 
         poolKey = PoolKey(c0, c1, 3000, 60, IHooks(hook));
         poolId = poolKey.toId();
 
         bool wethIsToken0 = address(weth) < address(usdc);
         uint160 sqrtPriceX96 = wethIsToken0
-            ? StrataDeploy.encodeSqrtPriceX96(PRICE * 1e6, 1e18)
-            : StrataDeploy.encodeSqrtPriceX96(1e18, PRICE * 1e6);
+            ? UnistrataDeploy.encodeSqrtPriceX96(PRICE * 1e6, 1e18)
+            : UnistrataDeploy.encodeSqrtPriceX96(1e18, PRICE * 1e6);
         poolManager.initialize(poolKey, sqrtPriceX96);
 
         weth.mint(alice, 1_000e18);
@@ -78,34 +78,34 @@ contract StrataMixedDecimalsTest is BaseTest {
     }
 
     // deposit 2 WETH + 6000 USDC (≈ equal value at price 3000) → ~12,000 USDC of NAV, in WAD.
-    function _depositBalanced(bool isSenior, uint256 wethAmt) internal returns (uint256) {
+    function _depositBalanced(bool isBedrock, uint256 wethAmt) internal returns (uint256) {
         uint256 usdcAmt = wethAmt * PRICE / 1e12; // scale 18-dec WETH amount to 6-dec USDC at price
         bool wethIsToken0 = address(weth) < address(usdc);
         (uint256 a0, uint256 a1) = wethIsToken0 ? (wethAmt, usdcAmt) : (usdcAmt, wethAmt);
         vm.prank(alice);
-        return hook.deposit(isSenior, a0, a1);
+        return hook.deposit(isBedrock, a0, a1);
     }
 
     // the 6-decimal numéraire is valued correctly: a ~$12k deposit reads as ~12,000e18 WAD, not
     // ~12e15 or ~12e30 (which is what a decimals/numéraire mis-wire would produce)
     function test_mixedDecimals_navIsSane() public {
-        _depositBalanced(false, 2e18); // junior: 2 WETH + 6000 USDC
-        uint256 jnav = hook.juniorNav();
-        console2.log("juniorNav (WAD):", jnav);
+        _depositBalanced(false, 2e18); // sediment: 2 WETH + 6000 USDC
+        uint256 jnav = hook.sedimentNav();
+        console2.log("sedimentNav (WAD):", jnav);
         assertGt(jnav, 8_000e18); // decisively rules out a 1e12-low decimals bug
         assertLt(jnav, 20_000e18); // ...and a 1e12-high one; true value ≈ 12,000e18
     }
 
     // both tranches + a settlement keep conservation under mixed decimals
     function test_mixedDecimals_depositSettleConservation() public {
-        _depositBalanced(false, 4e18); // junior coverage first
-        _depositBalanced(true, 2e18); // senior within the cap
+        _depositBalanced(false, 4e18); // sediment coverage first
+        _depositBalanced(true, 2e18); // bedrock within the cap
 
-        uint256 ratio = hook.seniorNav() * 1e18 / (hook.seniorNav() + hook.juniorNav());
+        uint256 ratio = hook.bedrockNav() * 1e18 / (hook.bedrockNav() + hook.sedimentNav());
         assertLe(ratio, 0.75e18);
 
         vm.warp(block.timestamp + 1 days + 1 hours + 1);
         hook.settleEpoch();
-        assertApproxEqAbs(hook.seniorNav() + hook.juniorNav(), hook.totalAssets(), 1e12);
+        assertApproxEqAbs(hook.bedrockNav() + hook.sedimentNav(), hook.totalAssets(), 1e12);
     }
 }
