@@ -9,8 +9,9 @@ const CSS = `
 .st-chart__price { fill: rgba(120,140,150,0.06); stroke: none; }
 .st-chart__line { fill: none; vector-effect: non-scaling-stroke; }
 .st-chart__future { opacity: 0.22; }
-.st-chart__head { stroke: var(--ink-550); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 3 3; }
-.st-chart__dot { stroke: var(--ink-950); stroke-width: 2; }
+.st-chart__head { stroke: var(--ink-550); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 3 3; transition: x1 80ms linear, x2 80ms linear; }
+.st-chart__dot { stroke: var(--ink-950); stroke-width: 2; transition: cx 80ms linear, cy 80ms linear; }
+@media (prefers-reduced-motion: reduce) { .st-chart__dot, .st-chart__head { transition: none; } }
 .st-chart__legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; }
 .st-chart__leg { display: inline-flex; align-items: center; gap: 7px; font-family: var(--font-mono);
   font-size: 11px; color: var(--text-secondary); letter-spacing: 0.01em; }
@@ -92,8 +93,13 @@ export function MoneyChart({
   }
 
   const cut = Math.max(0, Math.min(1, progress));
-  const headX = px((n - 1) * cut);
-  const idx = Math.round((n - 1) * cut);
+  // Fractional position so the playhead, dots and legend track *between* epochs (no snapping).
+  const pos = (n - 1) * cut;
+  const headX = px(pos);
+  const di0 = Math.floor(pos);
+  const di1 = Math.min(di0 + 1, n - 1);
+  const df = pos - di0;
+  const valAt = (arr: number[]) => arr[di0] + (arr[di1] - arr[di0]) * df;
   const clipId = React.useId ? React.useId().replace(/:/g, '') : 'c' + Math.random().toString(36).slice(2);
 
   return (
@@ -123,7 +129,7 @@ export function MoneyChart({
         {/* playhead + dots */}
         {cut < 0.999 && <line className="st-chart__head" x1={headX} x2={headX} y1="0" y2={VH} />}
         {keys.map(r => (
-          <circle key={'d' + r.key} className="st-chart__dot" cx={headX} cy={py(series[r.key][idx])} r="3.5"
+          <circle key={'d' + r.key} className="st-chart__dot" cx={headX} cy={py(valAt(series[r.key]))} r="3.5"
             fill={r.color} vectorEffect="non-scaling-stroke" />
         ))}
       </svg>
@@ -133,7 +139,7 @@ export function MoneyChart({
           {keys.slice().reverse().map(r => (
             <span key={r.key} className="st-chart__leg">
               <i style={{ borderTopColor: r.color, borderTopStyle: r.dash !== '0' ? 'dashed' : 'solid' }} />
-              {r.label} <b style={{ color: r.color }}>{series[r.key][idx].toFixed(1)}</b>
+              {r.label} <b style={{ color: r.color }}>{valAt(series[r.key]).toFixed(1)}</b>
             </span>
           ))}
         </div>

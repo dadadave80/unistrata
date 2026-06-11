@@ -47,15 +47,22 @@ export function Simulator() {
   const [scn, setScn] = React.useState<ScenarioId>('crash');
   const data = SCENARIOS[scn];
   const N = data.price.length; // real sim/out scenarios are per-epoch (variable length)
-  const [idx, setIdx] = React.useState(N - 1);
-  const i = Math.min(idx, N - 1);
-  const price = data.price[i];
-  const sNav = data.seniorNav[i];
-  const jNav = data.juniorNav[i];
+  // Fractional epoch position so the slider scrubs *through* the epochs (not snapping to each one);
+  // every value is linearly interpolated between the two bracketing settled epochs.
+  const [pos, setPos] = React.useState(N - 1);
+  const p = Math.max(0, Math.min(pos, N - 1));
+  const i0 = Math.floor(p);
+  const i1 = Math.min(i0 + 1, N - 1);
+  const f = p - i0;
+  const lerp = (arr: number[]) => arr[i0] + (arr[i1] - arr[i0]) * f;
+  const price = lerp(data.price);
+  const sNav = lerp(data.seniorNav);
+  const jNav = lerp(data.juniorNav);
   const j0 = data.juniorNav[0];
-  const progress = N > 1 ? i / (N - 1) : 1;
+  const progress = N > 1 ? p / (N - 1) : 1;
   const change = (price / data.price[0] - 1) * 100;
   const scaleMax = data.scaleMax;
+  const epochLabel = Math.round(p);
 
   return (
     <div>
@@ -68,7 +75,7 @@ export function Simulator() {
         <div className="sm__pills">
           {SCN.map((s) => (
             <button key={s.id} className="sm__pill" data-on={scn === s.id}
-              onClick={() => { setScn(s.id); setIdx(SCENARIOS[s.id].price.length - 1); }}>{s.label}</button>
+              onClick={() => { setScn(s.id); setPos(SCENARIOS[s.id].price.length - 1); }}>{s.label}</button>
           ))}
         </div>
       </div>
@@ -97,12 +104,12 @@ export function Simulator() {
 
       <div className="sm__scrub">
         <div className="sm__scrubhead">
-          <span className="sm__time">epoch {i} of {N - 1} · {data.name} scenario · replayed from sim/out</span>
+          <span className="sm__time">epoch {epochLabel} of {N - 1} · {data.name} scenario · replayed from sim/out</span>
           <span className="sm__price">tWETH {fmtUsd(price, 0)}</span>
         </div>
-        <input className="sm__range" type="range" min={0} max={N - 1} value={i}
-          onInput={(e) => setIdx(Number((e.target as HTMLInputElement).value))}
-          onChange={(e) => setIdx(Number(e.target.value))} />
+        <input className="sm__range" type="range" min={0} max={N - 1} step="any" value={p}
+          onInput={(e) => setPos(Number((e.target as HTMLInputElement).value))}
+          onChange={(e) => setPos(Number(e.target.value))} />
         <div className="sm__ticks"><span>epoch 0 · {fmtUsd(data.price[0], 0)}</span><span>scrub the settled epochs</span><span>epoch {N - 1}</span></div>
       </div>
     </div>
