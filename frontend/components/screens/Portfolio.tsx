@@ -12,7 +12,7 @@ import { Gauge } from '@/components/Gauge';
 import { EpochCountdown } from '@/components/EpochCountdown';
 import { EventFeed } from '@/components/EventFeed';
 import { NumberTicker } from '@/components/NumberTicker';
-import { ShieldCheck, Flame, Wallet, Clock, Check } from 'lucide-react';
+import { ShieldCheck, Flame, Wallet, Clock, Check, ExternalLink } from 'lucide-react';
 import { BEDROCK_TOKEN, SEDIMENT_TOKEN, erc20Abi, CHAIN_ID, EXPLORER } from '@/lib/contracts';
 import { useHookState } from '@/lib/useHookState';
 import { useHookEvents } from '@/lib/useHookEvents';
@@ -52,10 +52,18 @@ const psCSS = `
 .ps__gaugewrap { display:flex; align-items:center; gap: var(--space-6); }
 .ps__gaugemeta { display:flex; flex-direction: column; gap: var(--space-4); }
 .ps__feedwrap { margin-top: var(--space-7); }
+.ps__rvmlink { display:flex; align-items:center; gap:7px; margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--hairline); font-family: var(--font-mono); font-size: 11.5px; letter-spacing:0.02em; color: var(--text-tertiary); text-decoration:none; transition: color var(--dur-fast) var(--ease-out); }
+.ps__rvmlink:hover { color: var(--senior-200); }
+.ps__rvmlink svg { width:13px; height:13px; opacity:0.85; flex:none; }
 @media (max-width: 1000px){ .ps__grid{ grid-template-columns: 1fr; } }
 `;
 
 const ZERO = '0x0000000000000000000000000000000000000000';
+
+// The Lasna side of the loop: the RSC's RVM transactions on Reactive Scan (deployer-EOA rvm / RSC contract) —
+// where this variance spike is reacted to and the cross-chain emergencySettle callback is dispatched.
+const RVM_REACTIONS_URL =
+  'https://lasna.reactscan.net/address/0xdadada4e8038641212262fd94e816d4a57cdc751/contract/0xac81c63d936b6a751ecdd412c7c956dc70f9313e?screen=transactions';
 
 export function Portfolio() {
   const { open } = useAppKit();
@@ -242,6 +250,9 @@ export function Portfolio() {
                 </div>
               </div>
             </div>
+            <a className="ps__rvmlink" href={RVM_REACTIONS_URL} target="_blank" rel="noreferrer">
+              <ExternalLink /> Live RSC reactions on Reactive Lasna
+            </a>
           </Panel>
 
           <Panel eyebrow="Epoch clock" title="Next settlement">
