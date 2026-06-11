@@ -11,8 +11,7 @@ import { EventFeed } from '@/components/EventFeed';
 import { NumberTicker } from '@/components/NumberTicker';
 import { useHookState } from '@/lib/useHookState';
 import { useHookEvents } from '@/lib/useHookEvents';
-import { TESTNET } from '@/lib/testnet';
-import { EXPLORER } from '@/lib/contracts';
+import { EXPLORER, HOOK_ADDRESS } from '@/lib/contracts';
 import { shortAddr } from '@/lib/format';
 import { useShell } from '@/context/Shell';
 
@@ -33,15 +32,14 @@ const obsCSS = `
 
 export function Observatory() {
   const { core, runSettlement } = useShell();
-  const live = useHookState(); // live UnistrataHook state (30s refetch) with snapshot fallback
-  const liveFeed = useHookEvents(); // live on-chain event log (20s rescan) with verified-trail fallback
+  const live = useHookState(); // live UnistrataHook state (30s refetch) — live data only, no fallback
+  const liveFeed = useHookEvents(); // live on-chain event log (20s rescan) — real logs only, no fallback
   const sNav = live.bedrockNav;
   const jNav = live.sedimentNav;
   const scaleMax = live.tvl ? live.tvl * 1.3 : 30000;
-  const volRatio = live.varAcc / live.spikeThreshold;
-  const hookShort = shortAddr(TESTNET.addresses.hook);
-  const useLiveFeed = liveFeed.live && liveFeed.events.length > 0;
-  const feedEvents = useLiveFeed ? liveFeed.events : TESTNET.events;
+  const volRatio = live.spikeThreshold ? live.varAcc / live.spikeThreshold : 0;
+  const hookShort = shortAddr(HOOK_ADDRESS);
+  const feedEvents = liveFeed.events; // never a fabricated trail; empty → EventFeed shows its empty state
   const connected = live.live || liveFeed.live;
 
   return (
@@ -50,9 +48,9 @@ export function Observatory() {
       <div className="ob__head">
         <div>
           <div className="ob__title">Observatory</div>
-          <div className="ob__sub">{live.live ? 'live' : 'snapshot'} · tWETH/tUSDC · hook {hookShort} · Unichain Sepolia · measured from on-chain ticks, no external oracle</div>
+          <div className="ob__sub">{live.live ? 'live' : 'awaiting live data'} · tWETH/tUSDC · hook {hookShort} · Unichain Sepolia · measured from on-chain ticks, no external oracle</div>
         </div>
-        <Badge variant={connected ? 'live' : 'neutral'} live={connected}>{connected ? 'Reactive Network connected' : 'RPC unreachable · snapshot'}</Badge>
+        <Badge variant={connected ? 'live' : 'neutral'} live={connected}>{connected ? 'Reactive Network connected' : 'RPC unreachable'}</Badge>
       </div>
 
       <div className="ob__grid">
@@ -92,7 +90,8 @@ export function Observatory() {
 
       <div className="ob__feedwrap">
         <EventFeed events={feedEvents} maxHeight={320}
-          title={useLiveFeed ? 'Reactive Network · live on-chain feed' : 'Reactive Network · verified run (re-run 04–06 for live)'}
+          title="Reactive Network · live on-chain feed"
+          emptyLabel="No on-chain events yet. Run the live-market demo (01_LiveMarket) to populate the feed — it streams here as the hook emits them."
           explorerBase={EXPLORER} />
       </div>
     </div>

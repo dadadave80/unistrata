@@ -33,6 +33,8 @@ const CSS = `
 .st-feed__tx { color: var(--senior-300); text-decoration: none; border-bottom: 1px dotted var(--senior-700); }
 .st-feed__tx:hover { color: var(--senior-200); }
 .st-feed__chain { color: var(--text-tertiary); }
+.st-feed__empty { padding: 22px 14px; font-size: 12.5px; color: var(--text-tertiary); line-height: 1.6; }
+.st-feed__dot--idle { animation: none; background: var(--ink-550); box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .st-feed__dot { animation: none; } }
 `;
 
@@ -64,20 +66,24 @@ type EventFeedProps = React.HTMLAttributes<HTMLDivElement> & {
   maxHeight?: number;
   /** Base URL for tx links. */
   explorerBase?: string;
+  /** Message shown when there are no events (honest empty state — no fabricated rows). */
+  emptyLabel?: string;
 };
 
 export function EventFeed({
   events = [], title = 'Reactive Network · automation feed', maxHeight,
-  explorerBase = '#', className = '', ...rest
+  explorerBase = '#', emptyLabel = 'No on-chain events yet.', className = '', ...rest
 }: EventFeedProps) {
+  const isEmpty = events.length === 0;
   return (
     <div className={`st-feed ${className}`} style={maxHeight ? ({ ['--st-feed-h']: maxHeight + 'px' } as React.CSSProperties) : undefined} {...rest}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="st-feed__bar">
-        <span className="st-feed__title"><span className="st-feed__dot" />{title}</span>
+        <span className="st-feed__title"><span className={`st-feed__dot${isEmpty ? ' st-feed__dot--idle' : ''}`} />{title}</span>
         <span className="st-feed__meta">no keepers · no bots</span>
       </div>
       <div className="st-feed__list">
+        {isEmpty && <div className="st-feed__empty">{emptyLabel}</div>}
         {events.map((e: FeedEvent, i: number) => (
           <div className="st-feed__row" key={i}>
             <span className="st-feed__ts">{e.time}</span>

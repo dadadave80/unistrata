@@ -2,13 +2,48 @@
 
 import { useReadContracts } from 'wagmi';
 import { HOOK_ADDRESS, hookAbi, CHAIN_ID } from './contracts';
-import { TESTNET } from './testnet';
 import { fromWad } from './format';
 
 const FNS = ['bedrockNav', 'sedimentNav', 'epochId', 'varAcc', 'epochStart', 'epochDuration'] as const;
 
-/** Live UnistrataHook state (refetched every 30s), falling back to the committed snapshot. */
-export function useHookState() {
+// The RSC's emergency trigger lives on the UnistrataReactive contract (Lasna), not the hook — it is a fixed
+// protocol constant, displayed for context, not a fabricated stand-in for a missing live read.
+const SPIKE_THRESHOLD = 4_000_000;
+
+export type HookState = {
+  bedrockNav: number;
+  sedimentNav: number;
+  tvl: number;
+  epoch: number;
+  varAcc: number;
+  epochStart: number;
+  epochDuration: number;
+  secondsToSettle: number;
+  spikeThreshold: number;
+  live: boolean;
+};
+
+// Honest "not live" state: zeros + live=false. No snapshot/fabricated values — the UI shows an explicit
+// "awaiting live data" state instead of stale numbers.
+const NOT_LIVE: HookState = {
+  bedrockNav: 0,
+  sedimentNav: 0,
+  tvl: 0,
+  epoch: 0,
+  varAcc: 0,
+  epochStart: 0,
+  epochDuration: 0,
+  secondsToSettle: 0,
+  spikeThreshold: SPIKE_THRESHOLD,
+  live: false,
+};
+
+/**
+ * Live UnistrataHook state (refetched every 30s) — live data only, no fabricated fallback. Returns
+ * NOT_LIVE (zeros, live=false) until the core reads (both NAVs, epoch, varAcc) all succeed, so the UI can
+ * show an honest "awaiting live data / RPC unreachable" state rather than stale numbers.
+ */
+export function useHookState(): HookState {
   const { data, isSuccess } = useReadContracts({
     contracts: FNS.map((functionName) => ({
       address: HOOK_ADDRESS,
@@ -19,38 +54,34 @@ export function useHookState() {
     query: { refetchInterval: 30_000 },
   });
 
-  const snap = TESTNET.pool;
-  const fallbackSecs = snap.epochLengthH * 3600;
-  if (!isSuccess || !data) {
-    return { ...snap, epochStart: 0, epochDuration: fallbackSecs, secondsToSettle: fallbackSecs, live: false };
-  }
+  if (!isSuccess || !data) return NOT_LIVE;
 
   const ok = (i: number) => Boolean(data[i] && data[i].status === 'success');
-  const at = (i: number) => (data[i] && data[i].status === 'success' ? (data[i].result as bigint) : undefined);
-  const bedrockNav = Math.round(fromWad(at(0), snap.bedrockNav));
-  const sedimentNav = Math.round(fromWad(at(1), snap.sedimentNav));
-  const epoch = at(2) !== undefined ? Number(at(2)) : snap.epoch;
-  const varAcc = at(3) !== undefined ? Number(at(3)) : snap.varAcc;
-  const epochStart = at(4) !== undefined ? Number(at(4)) : 0;
-  const epochDuration = at(5) !== undefined ? Number(at(5)) : fallbackSecs;
+  const at = (i: number) => (ok(i) ? (data[i].result as bigint) : undefined);
 
-  // Honest "live": only when the displayed tranche/epoch reads ALL succeeded. On a partial multicall
-  // failure some tiles silently show the snapshot fallback, so the badge must NOT claim live.
-  const coreLive = ok(0) && ok(1) && ok(2) && ok(3);
-  const navLive = ok(0) && ok(1);
+  // Require ALL displayed core reads to succeed before claiming live — never a live+missing hybrid.
+  if (!(ok(0) && ok(1) && ok(2) && ok(3))) return NOT_LIVE;
+
+  const bedrockNav = Math.round(fromWad(at(0)));
+  const sedimentNav = Math.round(fromWad(at(1)));
+  const epoch = Number(at(2));
+  const varAcc = Number(at(3));
+  const epochStart = at(4) !== undefined ? Number(at(4)) : 0;
+  const epochDuration = at(5) !== undefined ? Number(at(5)) : 0;
   const nowSec = Math.floor(Date.now() / 1000);
-  const secondsToSettle = epochStart > 0 ? Math.max(0, epochStart + epochDuration - nowSec) : fallbackSecs;
+  const secondsToSettle =
+    epochStart > 0 && epochDuration > 0 ? Math.max(0, epochStart + epochDuration - nowSec) : 0;
 
   return {
-    ...snap,
     bedrockNav,
     sedimentNav,
-    tvl: navLive ? bedrockNav + sedimentNav : snap.tvl, // keep TVL coherent — never a live+snapshot hybrid
+    tvl: bedrockNav + sedimentNav,
     epoch,
     varAcc,
     epochStart,
     epochDuration,
     secondsToSettle,
-    live: coreLive,
+    spikeThreshold: SPIKE_THRESHOLD,
+    live: true,
   };
 }

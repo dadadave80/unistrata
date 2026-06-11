@@ -4,7 +4,17 @@ import { useEffect, useState } from 'react';
 import { usePublicClient } from 'wagmi';
 import { formatUnits } from 'viem';
 import { HOOK_ADDRESS, hookAbi, CHAIN_ID, EXPLORER } from './contracts';
-import type { FeedEvent } from './testnet';
+
+/** A row in the live on-chain event feed (also the shape EventFeed renders). */
+export type FeedEvent = {
+  time: string;
+  kind: 'emergency' | 'reactive' | 'settle' | 'info';
+  epoch: number;
+  chain: string;
+  tx: string;
+  txUrl?: string;
+  message: string;
+};
 
 // The event ABIs from the hook (used to decode getLogs results).
 const EVENT_ABIS = hookAbi.filter((x) => x.type === 'event');
@@ -53,8 +63,9 @@ function toFeedEvent(log: { eventName?: string; args?: Record<string, unknown>; 
 }
 
 /**
- * Live UnistrataHook event feed from on-chain logs (re-scanned every 20s). `live` is false until a
- * successful scan; callers fall back to the verified static trail when there are no live events.
+ * Live UnistrataHook event feed from on-chain logs (re-scanned every 20s). `events` is always the real
+ * on-chain log — never a fabricated fallback; `live` is true once a scan returns ≥1 event. Callers render
+ * an honest empty state (not a stale trail) while it's empty.
  */
 export function useHookEvents(): { events: FeedEvent[]; live: boolean } {
   const client = usePublicClient({ chainId: CHAIN_ID });
@@ -100,8 +111,8 @@ export function useHookEvents(): { events: FeedEvent[]; live: boolean } {
           .map((l) => toFeedEvent(l as never))
           .filter((e): e is FeedEvent => e !== null)
           .slice(0, MAX_EVENTS);
-        // Only surface "live" once we actually have events — an empty (but successful) scan keeps the
-        // verified fallback rather than showing a blank feed.
+        // Only surface "live" once we actually have events. An empty (but successful) scan leaves
+        // events=[] so the UI shows its honest empty state — never a fabricated trail.
         if (mapped.length > 0) { setEvents(mapped); setLive(true); }
       } catch {
         // Transient failure: keep the last-good feed. We never flip live→false here, so the feed
