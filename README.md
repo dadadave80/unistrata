@@ -210,9 +210,7 @@ All scripts live in `script/unistrata/`. Every broadcasting run uses a keystore 
 | 02 | `02_DeployReactive` | Deploys the RSC; its constructor registers both subscriptions (CRON + `UnistrataObservation`), so deploying **is** subscribing. `TICKS_PER_EPOCH=120`, `SPIKE_THRESHOLD=4,000,000`, `CALLBACK_GAS_LIMIT=1,000,000`. Writes `UNISTRATA_REACTIVE`. | `reactive_lasna` |
 | 03 | `03_FundAndSubscribe` | Funds the hook (via the proxy's `depositTo`) on the origin chain and the RSC on Lasna — both chains in one invocation. | both |
 | 04 | `04_DepositDemo` | Mints (permissionless `DemoERC20`) + approves, deposits into both tranches — **Sediment first**, then Bedrock, so the attachment cap holds. | `unichain_sep` |
-| 05 | `05_SpikeSwaps` | N=6 large alternating swaps (> `dCap`) to build variance and trip the circuit breaker. **MUST run `--slow`** (see gotchas). | `unichain_sep` |
-| 06 | `06_SpikeStep` | `--slow`-free alternative: one variance-building swap per invocation; self-syncs off the hook's on-chain `lastObservedTick`. | `unichain_sep` |
-| **07** | **`07_LiveMarket`** | **The live demo.** A realistic high-volume WETH/USDC session: Phase 1 normal trading (volume → fees, low variance), then Phase 2 a ~40% ETH crash that spikes `varAcc` past the trigger → cross-chain `emergencySettle` → **Bedrock NAV holds (protected), Sediment absorbs the drawdown**. Run `--slow`; watch the Observatory. Verified by `test/sim/LiveMarketDemo.t.sol`. | `unichain_sep` |
+| **05** | **`05_LiveMarket`** | **The live demo.** A realistic high-volume WETH/USDC session: Phase 1 normal trading (volume → fees, low variance), then Phase 2 a ~40% ETH crash that spikes `varAcc` past the trigger → cross-chain `emergencySettle` → **Bedrock NAV holds (protected), Sediment absorbs the drawdown**. Run `--slow` so each swap lands in its own block (one observation per block). Verified by `test/sim/LiveMarketDemo.t.sol`. | `unichain_sep` |
 
 Once cumulative `varAcc ≥ 4,000,000`, the RSC's `react()` fires `emergencySettle` back to the hook cross-chain (~1–3 min), bumping `epochId`.
 
@@ -273,7 +271,7 @@ Roadmap: tradeable epoch-dated **variance tokens** (pay realized σ² — comple
 
 1. **0:00–0:25 — Problem.** "LPs are forced sellers of volatility with no buyer. IL is just the bill." Show the money chart: vanilla LP bleeding below HODL.
 2. **0:25–1:00 — Idea.** The capital-structure framing. Open the Landing → Observatory `StrataCore`: Bedrock at the bottom (protected), Sediment on top (first-loss).
-3. **1:00–2:00 — Live mechanism (the money moment).** Run `07_LiveMarket` against the live pool: real volume flows (fees accrue), then ETH crashes ~40%. On the Observatory, the variance gauge spikes past the trigger, the live feed streams the real observations, and a Reactive contract on Lasna fires `emergencySettle` back cross-chain — no keeper. The result, on-chain and live: **Bedrock's NAV holds, protected; Sediment's NAV drops as it absorbs the entire drawdown** (~50% in testing). Then the Simulator replays the multi-epoch money chart for the full economics.
+3. **1:00–2:00 — Live mechanism (the money moment).** Run `05_LiveMarket` against the live pool: real volume flows (fees accrue), then ETH crashes ~40%. On the Observatory, the variance gauge spikes past the trigger, the live feed streams the real observations, and a Reactive contract on Lasna fires `emergencySettle` back cross-chain — no keeper. The result, on-chain and live: **Bedrock's NAV holds, protected; Sediment's NAV drops as it absorbs the entire drawdown** (~50% in testing). Then the Simulator replays the multi-epoch money chart for the full economics.
 4. **2:00–2:40 — Why it matters.** Sustainable on-chain fixed income sized off an honest, oracle-free risk measure; Sediment as a new vol-underwriting asset class; zero keeper infrastructure.
 5. **2:40–3:00 — Traction surface.** The real Permit2 deposit flow on testnet, the addresses, the repo. "Every parameter is a governance dial; every pool can have a capital structure."
 
@@ -313,7 +311,7 @@ src/
   StratumToken.sol             # the beWETH / seWETH tranche share token
   libraries/{VarianceLib,NavLib,WaterfallLib}.sol
   reactive/UnistrataReactive.sol   # the RSC (CRON heartbeat + volatility circuit breaker)
-script/unistrata/              # 00_DeployMockTokens … 07_LiveMarket deploy + live-demo runbook
+script/unistrata/              # 00_DeployMockTokens … 05_LiveMarket deploy + live-demo runbook
 test/                          # 132 tests incl. stateful invariants
 sim/                           # Phase-5 scenario replays → sim/out/*.json (the money chart)
 frontend/                      # Next.js + Reown AppKit + wagmi/viem (bun)

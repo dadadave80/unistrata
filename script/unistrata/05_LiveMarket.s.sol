@@ -33,7 +33,7 @@ import {BaseScript} from "../base/BaseScript.sol";
 /// so **Bedrock's NAV holds while Sediment absorbs the entire crash drawdown** — IL, tranched and
 /// transferred, automatically. A vanilla full-range LP would simply have eaten the loss.
 ///
-///   forge script script/unistrata/07_LiveMarket.s.sol \
+///   forge script script/unistrata/05_LiveMarket.s.sol \
 ///     --rpc-url unichain_sep --account $ACCOUNT --sender $SENDER --broadcast --slow
 ///
 /// Watch the Observatory (live event feed + the Bedrock/Sediment NAV tiles) while it runs.

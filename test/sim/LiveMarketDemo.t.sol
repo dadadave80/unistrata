@@ -16,7 +16,7 @@ import {BaseTest} from "../utils/BaseTest.sol";
 import {SimSwapper} from "./SimSwapper.sol";
 import {UnistrataHook} from "src/UnistrataHook.sol";
 
-/// @notice Verifies the live demo script (script/unistrata/07_LiveMarket.s.sol): the same two-phase market
+/// @notice Verifies the live demo script (script/unistrata/05_LiveMarket.s.sol): the same two-phase market
 ///         path (normal-volume chop → ~40% crash) must (a) drive realized variance past the 4,000,000 spike
 ///         trigger and (b) at emergency settlement, hold Bedrock's NAV (senior, protected) while Sediment
 ///         (junior, first-loss) absorbs the drawdown without being fully exhausted. If this stays green, the
@@ -39,7 +39,7 @@ contract LiveMarketDemoTest is BaseTest {
         uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x555C << 144)
     );
 
-    // mirror the 07_LiveMarket.s.sol calibration exactly
+    // mirror the 05_LiveMarket.s.sol calibration exactly
     uint256 internal constant VOL_SWAPS = 12;
     int24 internal constant VOL_BAND = 180;
     uint256 internal constant CRASH_STEPS = 5;
@@ -88,7 +88,7 @@ contract LiveMarketDemoTest is BaseTest {
         MockERC20(Currency.unwrap(currency1)).mint(address(swapper), 100_000_000e18);
     }
 
-    /// @dev Replays the 07 path: VOL_SWAPS of ±VOL_BAND chop, then CRASH_STEPS down by CRASH_STEP. Each swap
+    /// @dev Replays the 05_LiveMarket path: VOL_SWAPS of ±VOL_BAND chop, then CRASH_STEPS down by CRASH_STEP. Each swap
     ///      lands in its own block (vm.roll) — the hook counts one variance observation per new block.
     function _runMarketPath() internal {
         (, int24 initTick,,) = poolManager.getSlot0(poolKey.toId());
