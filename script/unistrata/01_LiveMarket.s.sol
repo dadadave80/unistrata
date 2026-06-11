@@ -14,6 +14,7 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {UnistrataHook} from "../../src/UnistrataHook.sol";
 import {SimSwapper} from "../../test/sim/SimSwapper.sol";
 import {DemoERC20} from "./DemoERC20.sol";
+import {EnvWriter} from "./EnvWriter.sol";
 import {BaseScript} from "../base/BaseScript.sol";
 
 /// @notice THE DEMO — a real-world high-volume WETH/USDC trading session on the live Unistrata pool.
@@ -33,10 +34,12 @@ import {BaseScript} from "../base/BaseScript.sol";
 /// so **Bedrock's NAV holds while Sediment absorbs the entire crash drawdown** — IL, tranched and
 /// transferred, automatically. A vanilla full-range LP would simply have eaten the loss.
 ///
-///   forge script script/unistrata/05_LiveMarket.s.sol \
+///   forge script script/unistrata/01_LiveMarket.s.sol \
 ///     --rpc-url unichain_sep --account $ACCOUNT --sender $SENDER --broadcast --slow
 ///
-/// Watch the Observatory (live event feed + the Bedrock/Sediment NAV tiles) while it runs.
+/// Re-runnable: the SimSwapper is persisted to `.env` (SIM_SWAPPER) on the first run and reused on every
+/// later run — no redeploy, topped up only when it runs low — so you can replay the session as many times
+/// as you like. Watch the Observatory (live event feed + the Bedrock/Sediment NAV tiles) while it runs.
 contract LiveMarketScript is BaseScript {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
@@ -61,11 +64,22 @@ contract LiveMarketScript is BaseScript {
 
         _log("init", initTick, hook);
 
+        // Reuse a persisted SimSwapper (SIM_SWAPPER in .env) so re-running this demo doesn't redeploy it;
+        // deploy + persist one on the first run.
+        address swapperAddr = vm.envOr("SIM_SWAPPER", address(0));
+
         vm.startBroadcast();
-        SimSwapper swapper = new SimSwapper(poolManager);
-        // DemoERC20.mint is permissionless — fund the swapper far beyond what moving a ~$2M pool needs.
-        DemoERC20(weth).mint(address(swapper), 1_000_000e18);
-        DemoERC20(usdc).mint(address(swapper), 3_000_000_000e6);
+        SimSwapper swapper;
+        if (swapperAddr.code.length == 0) {
+            swapper = new SimSwapper(poolManager);
+            swapperAddr = address(swapper);
+        } else {
+            swapper = SimSwapper(swapperAddr);
+        }
+        // DemoERC20.mint is permissionless — top up only when the swapper has run low, so repeated runs
+        // neither redeploy nor accumulate unbounded balances. The maxes dwarf what moving a ~$2M pool needs.
+        if (DemoERC20(weth).balanceOf(swapperAddr) < 100_000e18) DemoERC20(weth).mint(swapperAddr, 1_000_000e18);
+        if (DemoERC20(usdc).balanceOf(swapperAddr) < 300_000_000e6) DemoERC20(usdc).mint(swapperAddr, 3_000_000_000e6);
 
         // Phase 1 — normal high-volume trading: fees accrue, realized variance stays low.
         console2.log(unicode"── Phase 1: normal trading (volume + fees, low variance) ──");
@@ -84,6 +98,9 @@ contract LiveMarketScript is BaseScript {
             _log("  crash", tick, hook);
         }
         vm.stopBroadcast();
+
+        // Persist the swapper so the next run reuses it instead of redeploying (idempotent upsert).
+        EnvWriter.upsert(".env", "SIM_SWAPPER", vm.toString(swapperAddr));
 
         console2.log(unicode"── done ──");
         console2.log("final varAcc (crosses the 4,000,000 trigger):", hook.varAcc());
