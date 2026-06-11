@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.34;
 
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
 import {CurrencySettler} from "@openzeppelin/uniswap-hooks/src/utils/CurrencySettler.sol";
 import {AbstractCallback} from "reactive-lib/abstract-base/AbstractCallback.sol";
@@ -308,7 +308,8 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         // liquidity is added — never off the stale internal NAV accumulator.
         uint256 navPre = _liveTrancheNav(isBedrock);
         // payer == caller: the hook pulls owed tokens from the caller's ERC-20 allowance during settle.
-        (uint256 depositValue, uint256 used0, uint256 used1) = _runDeposit(msg.sender, isBedrock, amount0Max, amount1Max);
+        (uint256 depositValue, uint256 used0, uint256 used1) =
+            _runDeposit(msg.sender, isBedrock, amount0Max, amount1Max);
         shares = _finalizeDeposit(isBedrock, navPre, depositValue, used0, used1, msg.sender);
         if (shares < minSharesOut) revert UnistrataHook__InsufficientShares();
         _syncSediment();
@@ -368,8 +369,9 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         internal
         returns (uint256 depositValue, uint256 used0, uint256 used1)
     {
-        bytes memory res =
-            poolManager.unlock(abi.encode(Action.Deposit, abi.encode(payer, isBedrock, amount0Max, amount1Max)));
+        bytes memory res = poolManager.unlock(
+            abi.encode(Action.Deposit, abi.encode(payer, isBedrock, amount0Max, amount1Max))
+        );
         (depositValue, used0, used1) = abi.decode(res, (uint256, uint256, uint256));
     }
 

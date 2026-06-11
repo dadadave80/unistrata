@@ -26,10 +26,7 @@ contract StratumToken is ERC20, ERC20Permit {
         _;
     }
 
-    constructor(string memory name_, string memory symbol_, address hook_)
-        ERC20(name_, symbol_)
-        ERC20Permit(name_)
-    {
+    constructor(string memory name_, string memory symbol_, address hook_) ERC20(name_, symbol_) ERC20Permit(name_) {
         hook = hook_;
     }
 

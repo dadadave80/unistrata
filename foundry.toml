@@ -16,6 +16,11 @@ fs_permissions = [
 bytecode_hash = "none"
 cbor_metadata = false
 
+# CI selects this via FOUNDRY_PROFILE=ci (.github/workflows/ci.yml + the slither-action).
+# Inherits [profile.default] — identical osaka / 444-run / ≤24 KB build. Its existence is the
+# point: crytic-compile aborts on a missing profile ("selected profile `ci` does not exist").
+[profile.ci]
+
 [fmt]
 sort_imports = true
 

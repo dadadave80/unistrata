@@ -7,9 +7,9 @@ import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
-import {AddressConstants} from "hookmate/constants/AddressConstants.sol";
 import {Script, console2} from "forge-std/Script.sol";
 import {IERC20} from "forge-std/interfaces/IERC20.sol";
+import {AddressConstants} from "hookmate/constants/AddressConstants.sol";
 
 import {UnistrataHook} from "../../src/UnistrataHook.sol";
 import {UnistrataReactive} from "../../src/reactive/UnistrataReactive.sol";
@@ -165,7 +165,7 @@ contract SetupUnistrataScript is Script {
     /// @dev Init sqrt price for 1 tWETH = targetPrice tUSDC, in the pair's actual token0/token1 order.
     function _initSqrtPrice(address weth, address usdc, uint256 targetPrice) internal pure returns (uint160) {
         return weth < usdc
-            ? UnistrataDeploy.encodeSqrtPriceX96(targetPrice * 1e6, 1e18) // (amount1=USDC, amount0=WETH)
+            ? UnistrataDeploy.encodeSqrtPriceX96(targetPrice * 1e6, 1e18)  // (amount1=USDC, amount0=WETH)
             : UnistrataDeploy.encodeSqrtPriceX96(1e18, targetPrice * 1e6); // (amount1=WETH, amount0=USDC)
     }
 

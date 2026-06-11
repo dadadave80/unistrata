@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {Constants} from "v4-core/test/utils/Constants.sol";
-import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
-import {BaseTest} from "../utils/BaseTest.sol";
-import {UnistrataHook} from "src/UnistrataHook.sol";
-import {StratumToken} from "src/StratumToken.sol";
 import {DemoERC20} from "../../script/unistrata/DemoERC20.sol";
+import {BaseTest} from "../utils/BaseTest.sol";
+import {StratumToken} from "src/StratumToken.sol";
+import {UnistrataHook} from "src/UnistrataHook.sol";
 
 /// @notice Phase-4 hardening, EIP-2612 edition: deposit via two ERC20Permit signatures (one per
 ///         underlying leg) — no standing ERC-20 allowance to the hook and no Permit2 dependency.
