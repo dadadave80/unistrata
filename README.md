@@ -278,11 +278,10 @@ script/unistrata/              # 00_SetupUnistrata (bring-up) + 01_LiveMarket / 
 test/                          # 150 tests incl. stateful invariants
 sim/                           # Phase-5 scenario replays → sim/out/*.json (the money chart)
 frontend/                      # Next.js + Reown AppKit + wagmi/viem (bun)
-REACTIVE.md  PROGRESS.md        # Reactive integration notes + build log
 ```
 
 ---
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE). Built on the [Uniswap v4 Hook Template](https://github.com/Uniswap/v4-template) (also MIT). See `UNISTRATA_BUILD_BRIEF.md` for the full product spec, `REACTIVE.md` for the Reactive Network integration, and `PROGRESS.md` for the build log.
+MIT — see [`LICENSE`](LICENSE). Built on the [Uniswap v4 Hook Template](https://github.com/Uniswap/v4-template) (also MIT).
