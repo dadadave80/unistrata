@@ -180,6 +180,21 @@ export function Deposit() {
   const seNavPerShare = seSupply > 0 && live.sedimentNav > 0 ? live.sedimentNav / seSupply : 1;
   const navPerShare = isSenior ? beNavPerShare : seNavPerShare;
 
+  // Live layer headline yields — both from on-chain state, not hardcoded:
+  //  • Bedrock = the variance-priced coupon `bedrockRate` (WAD APR), fixed for the current epoch.
+  //  • Sediment has NO fixed rate (it earns the residual), so its honest live "yield" is the realized
+  //    NAV/share return (navPerShare − 1) — positive when it's banked premium, negative when it has
+  //    absorbed impermanent loss (which is exactly its job).
+  const { data: hookReads } = useReadContracts({
+    contracts: [{ address: HOOK_ADDRESS, abi: hookAbi, functionName: 'bedrockRate', chainId: CHAIN_ID }],
+    query: { refetchInterval: 30_000 },
+  });
+  const bedrockCouponPct = hookReads && hookReads[0].status === 'success'
+    ? Number(formatUnits(hookReads[0].result as bigint, 18)) * 100 : 0;
+  const sedimentReturnPct = (seNavPerShare - 1) * 100;
+  const bedApr = `${bedrockCouponPct.toFixed(1)}%`;
+  const sedApr = `${sedimentReturnPct > 0 ? '+' : ''}${sedimentReturnPct.toFixed(1)}%`;
+
   // Live pool split (Bedrock vs Sediment NAV) for the cross-section caption.
   const poolTotal = live.bedrockNav + live.sedimentNav;
   const bedPct = poolTotal > 0 ? Math.round((live.bedrockNav / poolTotal) * 100) : 0;
@@ -313,11 +328,11 @@ export function Deposit() {
           <div className="dp__core" role="radiogroup" aria-label="Choose your layer">
             <div className="dp__void"><span className="cap">tWETH / tUSDC · the cross-section is the selector</span></div>
             <button type="button" className="dp__layer dp__layer--sed" role="radio" aria-checked={!isSenior} data-on={!isSenior} onClick={() => setTranche('junior')}>
-              <span className="row1"><span className="nm">Sediment</span><span className="apr">23.4%</span><span className="apl">trailing 30d APR</span></span>
+              <span className="row1"><span className="nm">Sediment</span><span className="apr">{sedApr}</span><span className="apl">realized · NAV/share</span></span>
               <span className="role">Junior layer — absorbs loss first, keeps all excess fees and the risk premium</span>
             </button>
             <button type="button" className="dp__layer dp__layer--bed" role="radio" aria-checked={isSenior} data-on={isSenior} onClick={() => setTranche('senior')}>
-              <span className="row1"><span className="nm">Bedrock</span><span className="apr">7.2%</span><span className="apl">fixed this epoch</span></span>
+              <span className="row1"><span className="nm">Bedrock</span><span className="apr">{bedApr}</span><span className="apl">fixed this epoch</span></span>
               <span className="role">Senior layer — fixed coupon priced from σ², protected until Sediment is exhausted</span>
             </button>
           </div>
@@ -343,7 +358,7 @@ export function Deposit() {
         </div>
 
         <div className="dp__ticket">
-          <Panel accent={accent} eyebrow={isSenior ? 'Deposit to Bedrock' : 'Deposit to Sediment'} title={isSenior ? 'Fixed coupon · senior layer' : 'Levered yield · junior layer'}>
+          <Panel accent={accent} eyebrow={isSenior ? 'Deposit to Bedrock' : 'Deposit to Sediment'} title={isSenior ? `Fixed coupon · ${bedApr} this epoch` : 'Levered yield · junior layer'}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
               <div className="dp__field">
                 <div className="dp__balline">
