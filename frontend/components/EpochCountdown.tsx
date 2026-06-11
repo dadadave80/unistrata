@@ -36,27 +36,26 @@ type EpochCountdownProps = React.HTMLAttributes<HTMLDivElement> & {
   epochLength?: number;
   /** Whether the clock ticks. @default true */
   running?: boolean;
-  /** Fired when the countdown reaches zero. */
-  onSettle?: () => void;
 };
 
 export function EpochCountdown({
   epoch = 47, secondsLeft = 11529, epochLength = 28800,
-  running = true, onSettle, className = '', ...rest
+  running = true, className = '', ...rest
 }: EpochCountdownProps) {
   const [left, setLeft] = React.useState(secondsLeft);
   React.useEffect(() => setLeft(secondsLeft), [secondsLeft]);
   React.useEffect(() => {
     if (!running) return;
+    // Count down to zero and HOLD — once the epoch has elapsed, settlement is due. We never loop back to
+    // a full epoch (that fabricates a settlement that didn't happen on-chain); a real settlement updates
+    // epochStart, which flows in via the secondsLeft prop and restarts the clock for the new epoch.
     const id = setInterval(() => {
-      setLeft((prev: number) => {
-        if (prev <= 1) { onSettle && onSettle(); return epochLength; }
-        return prev - 1;
-      });
+      setLeft((prev: number) => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
     return () => clearInterval(id);
-  }, [running, epochLength]); // eslint-disable-line
+  }, [running]); // eslint-disable-line
 
+  const due = left <= 0;
   const { h, m, s } = hms(left);
   const elapsed = Math.max(0, Math.min(1, 1 - left / epochLength));
 
@@ -64,7 +63,7 @@ export function EpochCountdown({
     <div className={`st-epoch ${className}`} {...rest}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="st-epoch__head">
-        <span className="st-epoch__label">Next settlement</span>
+        <span className="st-epoch__label">{due ? 'Settlement due' : 'Next settlement'}</span>
         <span className="st-epoch__no">epoch {epoch} → {epoch + 1}</span>
       </div>
       <div className="st-epoch__time">

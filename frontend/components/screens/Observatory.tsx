@@ -76,7 +76,7 @@ export function Observatory() {
                 thresholds={[{ at: 1, color: 'var(--loss-400)' }]} />
               <div className="ob__gaugemeta">
                 <Stat label="varAcc" size="sm" value={<NumberTicker value={live.varAcc} />} delta={volRatio >= 1 ? 'trigger crossed' : 'below trigger'} deltaDir={volRatio >= 1 ? 'up' : 'down'} />
-                <Stat label="Emergency trigger" size="sm" value={live.spikeThreshold.toLocaleString()} unit="varAcc" />
+                <Stat label="Emergency trigger" size="sm" value={live.spikeThreshold.toLocaleString()} unit="varAcc · RSC constant" />
                 <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.5, maxWidth: '24ch' }}>
                   Variance crossed the trigger → Reactive closed the epoch early.
                 </div>
@@ -85,7 +85,7 @@ export function Observatory() {
           </Panel>
 
           <Panel eyebrow="Epoch clock" title="Next settlement">
-            <EpochCountdown epoch={live.epoch} secondsLeft={live.secondsToSettle} epochLength={live.epochDuration} running onSettle={runSettlement} />
+            <EpochCountdown epoch={live.epoch} secondsLeft={live.secondsToSettle} epochLength={live.epochDuration} running />
           </Panel>
         </div>
       </div>

@@ -13,6 +13,7 @@ import { ShieldCheck, Flame, LogOut } from 'lucide-react';
 import { HOOK_ADDRESS, TOKEN0, TOKEN1, TOKEN_WETH, TOKEN_USDC, erc20Abi, hookAbi, CHAIN_ID, txUrl } from '@/lib/contracts';
 import { PERMIT2_ADDRESS, buildPermitBatch } from '@/lib/permit2';
 import { fmtUsd, shortAddr } from '@/lib/format';
+import { usePoolPrice } from '@/lib/usePoolPrice';
 
 const depositCSS = `
 .dp__head { margin-bottom: var(--space-8); }
@@ -79,6 +80,10 @@ export function Deposit() {
   const accent = isSenior ? 'senior' : 'junior';
   const sharePrice = isSenior ? 1.0 : 0.97;
   const shares = amount / sharePrice;
+  // Live pool price (tUSDC per tWETH) from the v4 PoolManager's slot0 — never a hardcoded 3000, which
+  // would mis-pair the deposit legs once the pool moves off the seed price (review #17). Falls back to
+  // the seed price only while the read is loading.
+  const livePrice = usePoolPrice() ?? 3000;
 
   // live balances + current Permit2 allowances of the connected wallet (allowance is to Permit2, never the hook)
   const ZERO = '0x0000000000000000000000000000000000000000';
@@ -118,11 +123,11 @@ export function Deposit() {
     if (!address) { open(); return; }
     setErr(null); setDepTx(null);
     try {
-      // The "Amount in" field is denominated in tUSDC; pair it with ~balanced tWETH at 1 tWETH = 3000 tUSDC.
+      // The "Amount in" field is denominated in tUSDC; pair it with ~balanced tWETH at the LIVE pool price.
       // Map each leg to token0/token1 BY IDENTITY (the pool sorts tokens by address) so the Permit2 batch is
       // always ordered [currency0, currency1] — a future re-deploy that reorders tokens can't silently break it.
       const usdcAmount = parseUnits(String(amount), 6); // tUSDC, 6 dec
-      const wethAmount = parseUnits((amount / 3000).toFixed(18), 18); // tWETH, 18 dec
+      const wethAmount = parseUnits((amount / livePrice).toFixed(18), 18); // tWETH, 18 dec (live-priced)
       const amount0Max = (TOKEN0 as string) === TOKEN_USDC ? usdcAmount : wethAmount;
       const amount1Max = (TOKEN1 as string) === TOKEN_USDC ? usdcAmount : wethAmount;
 
@@ -245,12 +250,12 @@ export function Deposit() {
 
               <div className="dp__summary">
                 <div className="dp__line dp__line--em">
-                  <span className="k">Shares out</span>
+                  <span className="k">Shares out (est.)</span>
                   <span className="v" style={{ color: isSenior ? 'var(--senior-200)' : 'var(--junior-200)' }}>
                     <NumberTicker value={shares} decimals={2} /> {isSenior ? 'beWETH' : 'seWETH'}
                   </span>
                 </div>
-                <div className="dp__line"><span className="k">Pairs with</span><span className="v">≈ {(amount / 3000).toFixed(4)} tWETH</span></div>
+                <div className="dp__line"><span className="k">Pairs with</span><span className="v">≈ {(amount / livePrice).toFixed(4)} tWETH @ {fmtUsd(livePrice, 0)}</span></div>
                 <div className="dp__line"><span className="k">Settles</span><span className="v">next epoch boundary</span></div>
               </div>
 
