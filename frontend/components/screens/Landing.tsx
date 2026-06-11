@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { Button } from '@/components/Button';
 import { Badge } from '@/components/Badge';
 import { Panel } from '@/components/Panel';
@@ -10,6 +9,7 @@ import { MoneyChart } from '@/components/MoneyChart';
 import { NumberTicker } from '@/components/NumberTicker';
 import { SCENARIOS } from '@/lib/sim-data';
 import { useHookState } from '@/lib/useHookState';
+import { useShell } from '@/context/Shell';
 
 const landingCSS = `
 .lg__hero { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: var(--space-10); align-items: center; margin-bottom: var(--space-11); }
@@ -33,9 +33,8 @@ const landingCSS = `
 @media (max-width: 1000px){ .lg__hero{ grid-template-columns: 1fr; } .lg__metrics{ grid-template-columns: repeat(2,1fr);} }
 `;
 
-type Core = { seniorNav: number; juniorNav: number; sweepKey: number };
-
-export function Landing({ core, onSettle, onNav }: { core: Core; onSettle: () => void; onNav: (s: string) => void }) {
+export function Landing() {
+  const { core, runSettlement, nav } = useShell();
   const crash = SCENARIOS.crash;
   const live = useHookState(); // real hook state (30s refetch) with the verified-snapshot fallback
   // The hero "live core" scales to the live capital structure (falls back to the sim scale when empty),
@@ -59,7 +58,7 @@ export function Landing({ core, onSettle, onNav }: { core: Core; onSettle: () =>
             from the pool&apos;s own measured volatility. Sediment underwrites the risk and keeps the premium.
           </p>
           <div className="lg__cta">
-            <Button variant="primary" size="lg" onClick={() => onNav('deposit')}>Open Unistrata</Button>
+            <Button variant="primary" size="lg" onClick={() => nav('/deposit')}>Open Unistrata</Button>
             <span className="note">no oracle · no keepers · settles every epoch</span>
           </div>
         </div>
@@ -69,7 +68,7 @@ export function Landing({ core, onSettle, onNav }: { core: Core; onSettle: () =>
             height={392} sweepKey={core.sweepKey} />
           <div className="lg__corecap">
             <span className="c">live core · waterfall runs Bedrock-first</span>
-            <Button size="sm" variant="senior" onClick={onSettle}>Run a settlement →</Button>
+            <Button size="sm" variant="senior" onClick={runSettlement}>Run a settlement →</Button>
           </div>
         </div>
       </section>
@@ -95,7 +94,7 @@ export function Landing({ core, onSettle, onNav }: { core: Core; onSettle: () =>
             <div className="lg__chartttl">Bedrock holds its line through a 50% crash</div>
             <div className="lg__chartsub">Replayed on-chain from the real May 2021 ETH crash (sim/out): tWETH falls $3,191 → $1,603 (−50%) and recovers to $1,889. Vanilla LP bleeds below HODL to impermanent loss; Bedrock&apos;s NAV holds flat — principal protected; Sediment absorbs the drawdown, then keeps the fees on the recovery.</div>
           </div>
-          <Button variant="secondary" onClick={() => onNav('simulator')}>Open the simulator</Button>
+          <Button variant="secondary" onClick={() => nav('/simulator')}>Open the simulator</Button>
         </div>
         <Panel padded>
           <MoneyChart price={crash.price} series={crash.series} progress={1} height={340} />

@@ -2,32 +2,35 @@
 
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useAccount, useDisconnect } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
-import { Layers, ArrowDownToLine, ArrowUpFromLine, RadioTower, SlidersHorizontal } from 'lucide-react';
+import { Layers, ArrowDownToLine, ArrowUpFromLine, Wallet, RadioTower, SlidersHorizontal } from 'lucide-react';
 import { StrataCore } from '@/components/StrataCore';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
 import { shortAddr } from '@/lib/format';
 
 const NAV = [
-  { id: 'landing', label: 'Thesis', Icon: Layers },
-  { id: 'deposit', label: 'Deposit', Icon: ArrowDownToLine },
-  { id: 'withdraw', label: 'Withdraw', Icon: ArrowUpFromLine },
-  { id: 'observatory', label: 'Observatory', Icon: RadioTower },
-  { id: 'simulator', label: 'Simulator', Icon: SlidersHorizontal },
+  { href: '/', label: 'Thesis', Icon: Layers },
+  { href: '/deposit', label: 'Deposit', Icon: ArrowDownToLine },
+  { href: '/withdraw', label: 'Withdraw', Icon: ArrowUpFromLine },
+  { href: '/portfolio', label: 'Portfolio', Icon: Wallet },
+  { href: '/observatory', label: 'Observatory', Icon: RadioTower },
+  { href: '/simulator', label: 'Simulator', Icon: SlidersHorizontal },
 ];
 
 const shellCSS = `
 .sx { display: grid; grid-template-columns: var(--rail-width) 1fr; min-height: 100vh; background: var(--bg-app); }
 .sx__rail { border-right: 1px solid var(--hairline); background: var(--ink-950);
   display: flex; flex-direction: column; padding: 20px 14px; position: sticky; top: 0; height: 100vh; }
-.sx__brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px 22px; }
+.sx__brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px 22px; text-decoration: none; }
 .sx__brand .wm { font-family: var(--font-display); font-weight: 500; font-size: 22px; letter-spacing: -0.02em; color: var(--text-primary); }
 .sx__nav { display: flex; flex-direction: column; gap: 2px; }
 .sx__item { display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: var(--radius-md);
   font-family: var(--font-sans); font-size: 14px; font-weight: 500; color: var(--text-secondary);
-  background: transparent; border: none; cursor: pointer; width: 100%; text-align: left;
+  background: transparent; border: none; cursor: pointer; width: 100%; text-align: left; text-decoration: none;
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .sx__item:hover { background: var(--surface-card); color: var(--text-primary); }
 .sx__item[data-active="true"] { background: var(--surface-raised); color: var(--text-primary); box-shadow: inset 2px 0 0 0 var(--senior-500); }
@@ -52,8 +55,6 @@ const shellCSS = `
 `;
 
 type Props = {
-  screen: string;
-  onNav: (s: string) => void;
   seniorNav: number;
   juniorNav: number;
   scaleMax: number;
@@ -61,26 +62,27 @@ type Props = {
   children: React.ReactNode;
 };
 
-export function AppShell({ screen, onNav, seniorNav, juniorNav, scaleMax, sweepKey, children }: Props) {
+export function AppShell({ seniorNav, juniorNav, scaleMax, sweepKey, children }: Props) {
   const { open } = useAppKit();
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
-  const cur = NAV.find((n) => n.id === screen) || NAV[0];
+  const pathname = usePathname();
+  const cur = NAV.find((n) => n.href === pathname) || NAV[0];
 
   return (
     <div className="sx">
       <style dangerouslySetInnerHTML={{ __html: shellCSS }} />
       <aside className="sx__rail">
-        <div className="sx__brand">
+        <Link href="/" className="sx__brand">
           <Image src="/strata-mark.svg" width={30} height={30} alt="Unistrata" />
           <span className="wm">Unistrata</span>
-        </div>
+        </Link>
         <div className="sx__sectlabel">Protocol</div>
         <nav className="sx__nav">
           {NAV.map((n) => (
-            <button key={n.id} className="sx__item" data-active={screen === n.id} onClick={() => onNav(n.id)}>
+            <Link key={n.href} className="sx__item" data-active={pathname === n.href} href={n.href}>
               <n.Icon size={17} />{n.label}
-            </button>
+            </Link>
           ))}
         </nav>
         <div className="sx__spacer" />

@@ -135,6 +135,7 @@ export function Withdraw() {
   else if (shares > bal + 1e-9) { label = `Only ${bal.toFixed(2)} ${sym} available`; disabled = true; }
   else if (busy === 'approve') { label = `Approve ${sym} in wallet…`; disabled = true; }
   else if (busy === 'request') { label = 'Confirm request in wallet…'; disabled = true; }
+  else if (busy === 'claim') { label = 'Claiming…'; disabled = true; }
   else { label = `Request ${sym} withdrawal`; }
 
   return (

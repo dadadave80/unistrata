@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { Panel } from '@/components/Panel';
 import { Stat } from '@/components/Stat';
 import { Badge } from '@/components/Badge';
@@ -15,6 +14,7 @@ import { useHookEvents } from '@/lib/useHookEvents';
 import { TESTNET } from '@/lib/testnet';
 import { EXPLORER } from '@/lib/contracts';
 import { shortAddr } from '@/lib/format';
+import { useShell } from '@/context/Shell';
 
 const obsCSS = `
 .ob__head { display:flex; align-items:flex-end; justify-content:space-between; gap: var(--space-6); margin-bottom: var(--space-7); }
@@ -31,7 +31,8 @@ const obsCSS = `
 @media (max-width: 1000px){ .ob__grid{ grid-template-columns: 1fr; } }
 `;
 
-export function Observatory({ core, onSettle }: { core: { sweepKey: number }; onSettle: () => void }) {
+export function Observatory() {
+  const { core, runSettlement } = useShell();
   const live = useHookState(); // live UnistrataHook state (30s refetch) with snapshot fallback
   const liveFeed = useHookEvents(); // live on-chain event log (20s rescan) with verified-trail fallback
   const sNav = live.bedrockNav;
@@ -58,7 +59,7 @@ export function Observatory({ core, onSettle }: { core: { sweepKey: number }; on
         <Panel padded>
           <div className="ob__corehead">
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>Unistrata Core · live capital structure</div>
-            <Button size="sm" variant="senior" onClick={onSettle}>Replay settlement</Button>
+            <Button size="sm" variant="senior" onClick={runSettlement}>Replay settlement</Button>
           </div>
           <StrataCore seniorNav={sNav} juniorNav={jNav} scaleMax={scaleMax} height={360} sweepKey={core.sweepKey} />
           <div className="ob__navrow">
@@ -84,7 +85,7 @@ export function Observatory({ core, onSettle }: { core: { sweepKey: number }; on
           </Panel>
 
           <Panel eyebrow="Epoch clock" title="Next settlement">
-            <EpochCountdown epoch={live.epoch} secondsLeft={live.secondsToSettle} epochLength={live.epochDuration} running onSettle={onSettle} />
+            <EpochCountdown epoch={live.epoch} secondsLeft={live.secondsToSettle} epochLength={live.epochDuration} running onSettle={runSettlement} />
           </Panel>
         </div>
       </div>
