@@ -143,7 +143,7 @@ export function Portfolio() {
           </div>
         </Panel>
           <div className="ps__feedwrap">
-            <EventFeed events={liveFeed.events} maxHeight={320}
+            <EventFeed events={liveFeed.events} maxHeight={500}
               title="Reactive Network · live on-chain feed"
               emptyLabel="No on-chain events yet. Run the live-market demo (01_LiveMarket) to populate the feed — it streams here as the hook emits them."
               explorerBase={EXPLORER} />
