@@ -108,6 +108,20 @@ contract UnistrataReactiveTest is Test {
         assertEq(rsc.cronTicks(), 0);
     }
 
+    // a confirmed settlement (heartbeat/emergency/permissionless) resyncs the heartbeat counter, so
+    // cadence/duration drift self-corrects instead of silently dropping a scheduled beat — review #15
+    function test_epochSettled_resyncsHeartbeat() public {
+        _react(_cronLog()); // cronTicks = 1
+        assertEq(rsc.cronTicks(), 1);
+
+        IReactive.LogRecord memory log;
+        log.chain_id = ORIGIN_CHAIN;
+        log._contract = HOOK;
+        log.topic_0 = uint256(keccak256("EpochSettled(uint256,uint256,uint256,uint256,uint256,uint256,uint256)"));
+        assertEq(_react(log).length, 0); // observing a settlement emits no callback
+        assertEq(rsc.cronTicks(), 0); // …it just resyncs the heartbeat counter to the confirmed settle
+    }
+
     // an unrelated topic is ignored
     function test_unknownTopic_ignored() public {
         IReactive.LogRecord memory log;

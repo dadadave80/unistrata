@@ -26,6 +26,9 @@ contract UnistrataReactive is AbstractReactive {
 
     /// @dev topic_0 of `UnistrataHook.UnistrataObservation(int24,uint256)` (both args non-indexed → in data).
     uint256 public constant UNISTRATA_OBSERVATION_TOPIC = uint256(keccak256("UnistrataObservation(int24,uint256)"));
+    /// @dev topic_0 of `UnistrataHook.EpochSettled(...)` — a confirmed settlement, used to resync the heartbeat.
+    uint256 public constant EPOCH_SETTLED_TOPIC =
+        uint256(keccak256("EpochSettled(uint256,uint256,uint256,uint256,uint256,uint256,uint256)"));
 
     address public immutable owner;
     uint256 public immutable originChainId;
@@ -62,6 +65,7 @@ contract UnistrataReactive is AbstractReactive {
             // effect on-chain in the same deploy tx.
             _trySubscribe(block.chainid, address(service), _cronTopic);
             _trySubscribe(_originChainId, _unistrataHook, UNISTRATA_OBSERVATION_TOPIC);
+            _trySubscribe(_originChainId, _unistrataHook, EPOCH_SETTLED_TOPIC);
         }
     }
 
@@ -83,15 +87,28 @@ contract UnistrataReactive is AbstractReactive {
         service.subscribe(
             originChainId, unistrataHook, UNISTRATA_OBSERVATION_TOPIC, REACTIVE_IGNORE, REACTIVE_IGNORE, REACTIVE_IGNORE
         );
+        service.subscribe(
+            originChainId, unistrataHook, EPOCH_SETTLED_TOPIC, REACTIVE_IGNORE, REACTIVE_IGNORE, REACTIVE_IGNORE
+        );
     }
 
-    /// @notice ReactVM entry point: dispatch CRON heartbeats and UnistrataObservation events.
+    /// @notice ReactVM entry point: dispatch CRON heartbeats, observations, and confirmed settlements.
     function react(LogRecord calldata log) external vmOnly {
         if (log.topic_0 == cronTopic) {
             _onHeartbeat();
         } else if (log.topic_0 == UNISTRATA_OBSERVATION_TOPIC) {
             _onObservation(log.data);
+        } else if (log.topic_0 == EPOCH_SETTLED_TOPIC) {
+            _onSettled();
         }
+    }
+
+    /// @dev A settlement was CONFIRMED on the origin hook (heartbeat, emergency, or permissionless). Resync
+    ///      the heartbeat counter to the actual settlement so cadence/duration drift self-corrects instead
+    ///      of silently dropping a beat (#15), and re-baseline the variance breaker to the latest varAcc.
+    function _onSettled() internal {
+        cronTicks = 0;
+        lastSpikeVarAcc = latestVarAcc;
     }
 
     /// @dev Fire a scheduled settlement once per `ticksPerEpoch` CRON ticks.
