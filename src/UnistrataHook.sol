@@ -122,6 +122,10 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         bytes32 s;
     }
 
+    //*//////////////////////////////////////////////////////////////////////////
+    //                                   ERRORS
+    //////////////////////////////////////////////////////////////////////////*//
+
     error UnistrataHook__OnlyHookLiquidity();
     error UnistrataHook__AlreadyInitialized();
     error UnistrataHook__NotInitialized();
@@ -136,6 +140,10 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     error UnistrataHook__InvalidRateBounds();
     error UnistrataHook__SharesOverflow();
     error UnistrataHook__InsufficientShares();
+
+    //*//////////////////////////////////////////////////////////////////////////
+    //                                   EVENTS
+    //////////////////////////////////////////////////////////////////////////*//
 
     /// @notice Emitted once per new-block observation; the Reactive circuit breaker subscribes to this.
     event UnistrataObservation(int24 blockTickDelta, uint256 varAcc);
@@ -161,6 +169,10 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     event WithdrawClaimed(address indexed user, uint256 indexed id, uint256 value);
     /// @notice Emitted when the Reactive volatility circuit breaker forces an early settlement.
     event EmergencySettled(uint256 indexed epochId);
+
+    //*//////////////////////////////////////////////////////////////////////////
+    //                                  STORAGE
+    //////////////////////////////////////////////////////////////////////////*//
 
     uint256 internal constant WAD = 1e18;
     uint256 internal constant SECONDS_PER_YEAR = 365 days;
@@ -218,6 +230,10 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
 
     // --- withdrawal queue (brief §3.6) ---
     mapping(address => WithdrawRequest[]) public withdrawRequests;
+
+    //*//////////////////////////////////////////////////////////////////////////
+    //                                CONSTRUCTOR
+    //////////////////////////////////////////////////////////////////////////*//
 
     constructor(IPoolManager _poolManager, Config memory cfg, address callbackSender)
         BaseHook(_poolManager)
