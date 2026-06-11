@@ -19,6 +19,7 @@ Each epoch the structure settles through a seniority waterfall — Bedrock is pa
 
 | Artifact | Detail |
 |---|---|
+| **Live demo** | **[unistrata.vercel.app](https://unistrata.vercel.app)** |
 | **Live hook** | [`0xfc4f1c6aecad1507dd0ec4af4d72f62378c25840`](https://sepolia.uniscan.xyz/address/0xfc4f1c6aecad1507dd0ec4af4d72f62378c25840) · Unichain Sepolia (1301) |
 | **Reactive RSC** | [`0x3cad51414bbd94e19c47ef47fe2d65f89e467eea`](https://lasna.reactscan.net/address/0x3cad51414bbd94e19c47ef47fe2d65f89e467eea) · Reactive Lasna (5318007) |
 | **Tests** | 131 passing (Foundry, TDD) incl. stateful invariants — `forge test` |
@@ -232,7 +233,7 @@ Once cumulative `varAcc ≥ 4,000,000`, the RSC's `react()` fires `emergencySett
 
 ## Frontend
 
-A single-page **Next.js 14 (App Router, TypeScript)** app in `frontend/`, wired to the live hook through **Reown AppKit + wagmi/viem**, with **bun** as the package manager. One network — Unichain Sepolia (1301); reads go through Reown's default blockchain-API proxy (it serves both `eth_call` and the chunked `getLogs` feed).
+**Live at [unistrata.vercel.app](https://unistrata.vercel.app).** A single-page **Next.js 14 (App Router, TypeScript)** app in `frontend/`, wired to the live hook through **Reown AppKit + wagmi/viem**, with **bun** as the package manager. One network — Unichain Sepolia (1301); reads go through Reown's default blockchain-API proxy (it serves both `eth_call` and the chunked `getLogs` feed).
 
 - **Thesis / Landing** — the pitch: hero, the live capital-structure `StrataCore` visual, four live metric tiles (`useHookState`), and the crash-scenario money chart from real `sim/out` data. An honest `live` / `verified snapshot` badge reflects whether the RPC reads actually succeeded.
 - **Deposit** — *fully live, Permit2-based.* A permissionless faucet mints test tokens; depositing is a one-time `approve` to the audited **Permit2** (never a standing hook allowance) → a signed `PermitBatchTransferFrom` (exact amounts, hook as spender, deadline) → `depositWithPermit`. The hook pulls the exact maxes, mints shares, refunds the rest. Legs are mapped to `currency0`/`currency1` by token identity so a re-sort can't mis-order the batch.
@@ -296,7 +297,7 @@ Roadmap: tradeable epoch-dated **variance tokens** (pay realized σ² — comple
 - [x] Deployed live on Unichain Sepolia + Reactive Lasna (addresses above, in `.env` / `broadcast/`)
 - [x] Cross-chain settlement loop **verified on-chain** (spike → `emergencySettle` → `epochId 0→1`)
 - [x] Reactive sponsor track: subscriptions + callback-proxy auth + CRON & event triggers + funded + recorded trail (`REACTIVE.md`)
-- [x] Frontend live on testnet — Permit2 deposit, withdraw, live Reactive feed (`frontend/`)
+- [x] Frontend deployed + live on testnet — [unistrata.vercel.app](https://unistrata.vercel.app) — Permit2 deposit, withdraw, live Reactive feed
 - [x] Money chart from real on-chain simulation replays (`sim/out/`)
 - [ ] Demo video recorded to the storyboard above
 - [ ] Submission form: repo link, addresses, video

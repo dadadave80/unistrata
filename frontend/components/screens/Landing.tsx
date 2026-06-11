@@ -41,8 +41,10 @@ export function Landing({ core, onSettle, onNav }: { core: Core; onSettle: () =>
     const e = document.createElement('style'); e.id = 'lg-css'; e.textContent = landingCSS; document.head.appendChild(e);
   }, []);
   const crash = SCENARIOS.crash;
-  const scaleMax = crash.scaleMax;
   const live = useHookState(); // real hook state (30s refetch) with the verified-snapshot fallback
+  // The hero "live core" scales to the live capital structure (falls back to the sim scale when empty),
+  // so large real deposits don't overflow a hardcoded axis.
+  const scaleMax = Math.round((core.seniorNav + core.juniorNav) * 1.3) || crash.scaleMax;
 
   return (
     <div>
