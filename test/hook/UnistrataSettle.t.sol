@@ -136,6 +136,28 @@ contract UnistrataSettleTest is BaseTest {
         assertLe(hook.bedrockRate(), 0.5e18);
     }
 
+    // settlement must reject a price manipulated far from the epoch's TIME-WEIGHTED average, even though
+    // the manipulating swap (a new block) updates lastObservedTick — the old guard compared against that
+    // attacker-movable tick and let the manipulation through. review #13/#16
+    function test_settleEpoch_RevertWhen_priceManipulatedVsTwap() public {
+        // a couple of small observations keep the epoch's TWAP near the init tick
+        vm.roll(block.number + 1);
+        _swap(5e18, true);
+        vm.roll(block.number + 1);
+        _swap(5e18, false);
+
+        // elapse the epoch + grace (permissionless path), no further swaps ⇒ TWAP stays near init
+        _elapseEpoch();
+
+        // attacker moves spot far in a NEW block — this updates lastObservedTick to the manipulated tick
+        vm.roll(block.number + 1);
+        _swap(600e18, true);
+
+        // the manipulated spot is far from the epoch TWAP ⇒ settlement must revert
+        vm.expectRevert(UnistrataHook.UnistrataHook__SettlementPriceOutOfBand.selector);
+        hook.settleEpoch();
+    }
+
     // settlement price guard: an intra-block move away from the last observation reverts
     function test_settleEpoch_RevertWhen_priceOutOfBand() public {
         vm.roll(block.number + 1);

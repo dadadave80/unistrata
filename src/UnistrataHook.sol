@@ -22,6 +22,49 @@ import {NavLib} from "src/libraries/NavLib.sol";
 import {VarianceLib} from "src/libraries/VarianceLib.sol";
 import {WaterfallLib} from "src/libraries/WaterfallLib.sol";
 
+/*
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⠠⡄⢤⡒⣔⢢⡒⣔⢢⡒⣔⢢⡒⣔⢢⡒⣔⢢⡒⣔⢢⡒⣔⢢⡒⣔⢢⡒⣔⢢⡒⣔⢢⡒⣔⢢⡒⣔⢢⡒⣔⢢⡒⣔⢢⢤⠠⡄⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡠⡔⢎⡳⣌⢳⡙⢦⡹⡰⢣⡕⢮⡑⢞⢬⡒⢭⡒⣣⠕⢮⡑⡞⢬⡒⣭⢒⡣⡕⢮⡑⢞⢬⡒⢭⡒⣣⠕⢮⡑⡞⢬⡒⣭⢒⡣⡕⢮⢱⣊⠧⣓⢬⡙⡖⣢⢄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠜⢦⡓⣜⠣⡕⠊⠑⠈⠁⠀⠉⠁⠈⠀⠉⠈⠀⠉⠀⠉⠀⠉⠀⠉⠈⠁⠈⠀⠁⠁⠈⠁⠈⠉⠀⠉⠀⠉⠀⠉⠀⠉⠈⠁⠈⠀⠁⠁⠈⠁⠁⠈⠘⠘⠢⢝⠲⡥⣚⠴⢣⢄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⢳⡡⢞⡱⠜⠈⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠐⠣⣍⢳⢊⡳⢄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡚⢥⠲⡍⠎⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠩⢎⠵⣊⠖⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡰⢣⡙⣎⠕⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢪⢱⡹⠜⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⢭⢧⡳⠌⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⡀⢀⠀⢢⢷⡹⣬⢆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣛⢮⡳⡍⡐⠤⢁⠒⡈⠄⣂⠁⠆⡈⠔⢂⠡⢐⡈⠰⢀⠡⠒⡈⠄⣂⠁⠆⡈⠔⢂⠡⢐⡈⠰⢀⠡⠒⡈⠄⣂⠁⠆⡈⠔⢂⠡⢐⡈⠰⢀⠡⠒⡈⠄⣂⠁⠆⡈⠔⢂⠡⢐⡈⠰⢀⠡⠒⡈⠄⠊⠄⣹⢳⡝⣾⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢎⠭⡎⡕⠀⠀⠀⠀⠀⠀⠁⠀⠈⠀⠁⠈⠀⠀⠁⠀⠁⠈⠀⠁⠀⠈⠀⠈⠀⠁⠈⠀⠀⠁⠀⠁⠈⠀⠁⠀⠈⠀⠈⠀⠁⠈⠀⠀⠁⠀⠁⠈⠀⠁⠀⠈⠀⠈⠀⠁⠈⠀⠀⠁⠀⠁⠈⠀⠁⠀⠈⠁⠈⠀⢹⡸⡡⢇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⢎⢧⡙⠆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠰⢣⢝⡪⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⡜⢦⡙⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢈⡳⣊⠵⡃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣟⡯⣟⡥⢚⡰⣉⢆⢣⢃⠞⣌⠲⢡⢓⡸⢌⠲⡡⢓⡸⢌⠲⡡⢓⡸⢌⠲⡡⢓⡸⢌⠲⡡⢓⡸⢌⠲⡡⢓⡸⢌⠲⡡⢓⡸⢌⠲⡡⢓⡸⢌⠲⡡⢓⡸⢌⠲⡡⢓⡸⢌⠲⡡⢓⡸⢌⠲⡡⢓⡸⢌⠲⣉⢼⣻⡝⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢈⢯⠳⢏⡓⠈⠐⠂⠊⠂⠉⠒⠀⠋⠂⠃⠒⠈⠃⠑⠁⠒⠈⠃⠑⠁⠒⠈⠃⠑⠁⠒⠈⠃⠑⠁⠒⠈⠃⠑⠁⠒⠈⠃⠑⠁⠒⠈⠃⠑⠁⠒⠈⠃⠑⠁⠒⠈⠃⠑⠁⠒⠈⠃⠑⠁⠒⠈⠃⠑⠁⠒⠈⠃⠘⢸⢣⠟⣝⡂⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢈⠶⡙⣎⠅⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⢋⡞⠴⡁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢈⢞⡱⢎⠆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⢫⠜⣣⠅⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢈⣎⠶⣩⠆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣣⣛⣤⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⣿⣻⣟⡯⡹⣍⠯⣝⡭⢫⡽⣩⢏⡽⣍⢯⡹⢭⢫⡝⡭⢏⡽⣩⢯⡹⣍⠯⡝⣭⢫⠽⣩⢏⡽⣍⢯⡹⢭⢫⡝⡭⢏⡽⣩⢯⡹⣍⠯⡝⣭⢫⠽⣩⢏⡽⣍⢯⡹⢭⢫⡝⡭⢏⡽⣩⢯⡹⣍⠯⡝⣭⢫⠽⣹⣷⣻⢾⡁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣯⣷⢯⡗⡽⣌⠟⡴⣭⠳⣜⠵⣚⠶⣩⠶⣍⣳⢫⠼⣙⠮⣕⡳⢎⡵⢮⣙⡞⡥⢏⡳⢭⣚⠶⣩⠶⣍⣳⢫⠼⣙⠮⣕⡳⢎⡵⢮⣙⡞⡥⢏⡳⢭⣚⠶⣩⠶⣍⣳⢫⠼⣙⠮⣕⡳⢎⡵⢮⣙⡞⡥⢏⡳⢽⣾⣽⣻⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣞⡿⣝⡲⢭⠞⣵⢪⡝⢮⣙⣎⡳⢭⠞⣜⡲⢭⡛⡼⣙⢦⡝⢮⡱⢧⣓⢮⣙⢧⣋⠷⣬⠳⣍⠾⣜⡲⣍⡻⣜⡹⢦⡝⢮⡱⢧⣓⢮⣙⢧⣋⠷⣬⠳⣍⠾⣜⡲⣍⡻⣜⡹⢦⡝⢮⡱⢧⣓⢮⣙⢧⢫⣽⣞⡷⣿⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠨⣷⣻⣽⡧⡝⢮⡝⣲⢣⡝⢮⡱⢎⡵⣋⠾⣥⢫⢧⣹⢱⣋⠶⣭⢳⡙⡶⣩⠶⣩⠶⣩⢞⡲⣛⣬⠳⣎⠵⣎⡵⢎⡵⣓⢞⣣⡝⢶⡩⢶⣩⠶⣩⢞⡲⣛⣬⠳⣎⠵⣎⡵⢎⡵⣓⢞⣣⡝⢶⡩⢶⣩⢎⠷⣸⣯⣟⣷⠂⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠰⣿⡽⣞⡧⣝⣣⠞⣥⢳⡚⢧⡹⢭⢖⡭⢳⢎⣳⢚⡴⢫⣜⢳⡬⢇⡻⢴⣋⢞⡥⢯⡱⣎⢳⡕⣎⡳⢭⢞⡲⣙⢮⡱⣭⠺⡴⣙⠮⡵⣓⢎⡳⣍⢮⡕⢧⢎⡳⢭⢞⡲⣙⢮⡱⣭⠺⡴⣙⠮⡵⣓⢮⣙⡞⣹⣷⣻⢾⡁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢐⣯⣟⣿⡳⡜⢦⢻⣌⢧⢫⢳⣙⠮⡞⣜⡫⢞⡴⢫⣜⢳⡬⢳⡜⣫⠵⣓⢮⡹⣜⢣⠗⣎⡳⢎⡵⡹⢎⣞⡱⢫⡖⣝⡲⣝⣱⢋⡷⣱⢋⡞⡵⢪⣓⢮⣋⡞⣹⢎⡞⣱⢫⠖⣝⡲⣝⣱⢋⡷⡱⡭⢖⣣⢞⣹⣾⣽⣻⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡿⣞⣷⣛⡼⣙⠶⣊⡞⣭⢓⢮⢳⣙⠶⣩⢗⡚⡧⢎⡳⡜⣧⢹⡲⢭⣓⠮⡵⢎⣏⠾⣡⢯⣙⠶⣙⠧⣎⡝⢧⢞⡬⢳⠼⣌⠷⣪⢕⣫⡜⡳⡝⣜⡲⣥⢛⠦⣏⡼⢣⢏⠾⣡⢗⡺⣌⡗⢮⣕⢫⡝⢦⣋⢾⡷⣯⢿⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⢿⠻⡽⠇⠞⠭⠚⠥⠛⠴⠋⠎⠳⠎⠽⠱⠎⠽⠘⠯⠱⠙⠶⠩⠞⠱⠎⠽⠘⠧⠎⠳⠍⠶⠩⠞⠭⠚⠵⠚⠭⠚⠼⠩⠓⠎⠳⠥⠋⠶⠩⠳⠹⠌⠳⠜⠭⠓⠞⠼⠙⠮⠹⠱⠎⠳⠜⠎⠳⠬⠓⠞⠣⠝⠺⡽⢯⠿⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢘⣬⣳⣥⣃⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣸⣴⣣⣞⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢨⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠰⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠂⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢘⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢨⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠰⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠂⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡯⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠻⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠿⠛⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠛⠛⠛⠟⠻⠛⠻⠛⠟⠛⠟⠻⠛⠻⠛⠟⠛⠟⠻⠛⠻⠛⠟⠛⠟⠻⠛⠻⠛⠟⠛⠟⠻⠛⠻⠛⠟⠛⠟⠻⠛⠻⠛⠛⠛⠙⠉⠁⠀⠀⠀⠀
+*/
+
 /// @title UnistrataHook
 /// @author David Dada (https://github.com/dadadave80)
 /// @notice Uniswap v4 hook that turns one pool into a bedrock/sediment capital structure (Unistrata).
@@ -160,6 +203,11 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     int24 public lastObservedTick;
     uint256 public varAcc;
     uint256 public varAccAtEpochStart;
+
+    // --- TWAP guard state (manipulation-resistant settlement price reference, §3.5 / review #13,#16) ---
+    int256 public tickCumulative; // Σ tick·seconds, advanced on each new-block observation
+    uint48 public lastCumulativeTime; // timestamp of the last tickCumulative advance
+    int256 public tickCumulativeAtEpochStart; // tickCumulative snapshot at the last settlement
 
     // --- withdrawal queue (brief §3.6) ---
     mapping(address => WithdrawRequest[]) public withdrawRequests;
@@ -372,11 +420,20 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     function _settle() internal {
         if (!poolInitialized) revert UnistrataHook__NotInitialized();
 
-        // §3.5 price guard: reject settlement if the current price is far from our own sampled tick.
+        // §3.5 price guard: reject settling at a price far from the epoch's TIME-WEIGHTED average tick.
+        // Anchoring to the TWAP (not lastObservedTick, which a settler can move in the prior block) makes
+        // manipulate-then-settle uneconomical — biasing the waterfall requires skewing the epoch-long
+        // average, not a single end-of-epoch swap (review #13/#16).
         (, int24 tick,,) = poolManager.getSlot0(boundId);
-        int256 dev = int256(tick) - int256(lastObservedTick);
-        if (dev < 0) dev = -dev;
-        if (uint256(dev) > guardBand) revert UnistrataHook__SettlementPriceOutOfBand();
+        uint256 elapsed = block.timestamp - epochStart;
+        if (elapsed != 0) {
+            int256 cumNow =
+                tickCumulative + int256(lastObservedTick) * int256(uint256(block.timestamp - lastCumulativeTime));
+            int256 twap = (cumNow - tickCumulativeAtEpochStart) / int256(elapsed);
+            int256 dev = int256(tick) - twap;
+            if (dev < 0) dev = -dev;
+            if (uint256(dev) > guardBand) revert UnistrataHook__SettlementPriceOutOfBand();
+        }
 
         // Collect fees into idle and mark to market through the unlock callback.
         bytes memory res = poolManager.unlock(abi.encode(Action.Settle, bytes("")));
@@ -428,6 +485,11 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         feeYieldEwma = VarianceLib.ewma(feeYieldEwma, feeYield, lambdaSmoothing);
 
         bedrockRate = WaterfallLib.couponRate(feeYieldEwma, sigma2Ewma, lambdaRisk, rMin, rMax);
+
+        // Advance the TWAP accumulator to now and snapshot it as the next epoch's price-guard baseline.
+        tickCumulative += int256(lastObservedTick) * int256(uint256(block.timestamp - lastCumulativeTime));
+        lastCumulativeTime = uint48(block.timestamp);
+        tickCumulativeAtEpochStart = tickCumulative;
 
         uint256 settledId = epochId;
         epochId = settledId + 1;
@@ -711,6 +773,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
 
         lastObservedBlock = uint48(block.number);
         lastObservedTick = tick;
+        lastCumulativeTime = uint48(block.timestamp); // seed the TWAP accumulator clock (#13/#16)
         (tickLower, tickUpper,,) = NavLib.fullRangeBounds(key.tickSpacing);
 
         epochStart = block.timestamp;
@@ -742,6 +805,10 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         (uint48 nb, int24 nt, uint256 nv, int24 blockTickDelta, bool counted) =
             VarianceLib.observe(lastObservedBlock, lastObservedTick, varAcc, uint48(block.number), tick, dCap);
         if (counted) {
+            // Time-weight the PREVIOUS tick before advancing — feeds the manipulation-resistant TWAP that
+            // gates settlement (#13/#16), so a settler can't simply move lastObservedTick then settle.
+            tickCumulative += int256(lastObservedTick) * int256(uint256(block.timestamp - lastCumulativeTime));
+            lastCumulativeTime = uint48(block.timestamp);
             lastObservedBlock = nb;
             lastObservedTick = nt;
             varAcc = nv;
