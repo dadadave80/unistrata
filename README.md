@@ -149,7 +149,7 @@ flowchart TB
 
 ## Live deployment
 
-Deployed, subscribed, and funded on testnet — the volatility circuit breaker (`emergencySettle`) and CRON heartbeat (`settleEpoch`) are both wired; the cross-chain settlement trail is **regenerating on this deployment** (see below). Addresses are persisted in `.env`; receipts under `broadcast/`. v4 sorts tokens by address, so on this stack **token0 = tUSDC (6, numéraire), token1 = tWETH (18)**.
+Deployed, subscribed, and funded on testnet — the volatility circuit breaker (`emergencySettle`) and CRON heartbeat (`settleEpoch`) are both wired; the cross-chain settlement loop is **demonstrated end-to-end on this deployment** — a real variance spike settled cross-chain into `epochId 0→1` (trail below). Addresses are persisted in `.env`; receipts under `broadcast/`. v4 sorts tokens by address, so on this stack **token0 = tUSDC (6, numéraire), token1 = tWETH (18)**.
 
 | Contract | Chain | Address |
 |---|---|---|
@@ -162,15 +162,13 @@ Deployed, subscribed, and funded on testnet — the volatility circuit breaker (
 
 ### Verified cross-chain trail
 
-The "wow moment" — a real volatility spike, observed on-chain, routed cross-chain by the RSC, and settled back on the origin pool with **no keeper or bot of our own** (the RSC executes on-chain on Reactive; its relayers deliver the callback). Proven end-to-end on the prior deployment; the receipts below are **regenerating on the new EIP-2612 contracts** via a fresh `01_LiveMarket` run:
+The "wow moment" — a real volatility spike, observed on-chain, routed cross-chain by the RSC, and settled back on the origin pool with **no keeper or bot of our own** (the RSC executes on-chain on Reactive; its relayers deliver the callback). **Verified end-to-end on the live EIP-2612 deployment** — a fresh `01_LiveMarket` crash, settled cross-chain into `epochId 0→1`:
 
 | Hop | Chain | Tx | What |
 |---|---|---|---|
-| 0. Deposit | Unichain 1301 | ⏳ _pending re-run_ | deposit into both tranches (Bedrock + Sediment) |
-| 1. Build variance | Unichain 1301 | `--slow` swaps | `varAcc` climbs toward the 4,000,000 spike threshold |
-| **1b. Trigger crossed** | Unichain 1301 | ⏳ _pending re-run_ | `UnistrataObservation` first reaches `varAcc = 4,000,000` — the RSC's spike threshold |
-| 2. RSC reacts | Lasna 5318007 | RSC [`0xac81…313e`](https://lasna.reactscan.net/address/0xac81c63d936b6a751ecdd412c7c956dc70f9313e) | `react()` → `Callback(emergencySettle)` |
-| **3. Callback lands** | Unichain 1301 | ⏳ _pending re-run_ | `emergencySettle` → `EmergencySettled` + `EpochSettled`, `epochId 0→1` |
+| 1. Crash on volume | Unichain 1301 | 17 `--slow` swaps · blocks 54361076–104 ([first](https://sepolia.uniscan.xyz/tx/0x12e44796123a7ebf6e89f45e98f619c85bc2e1978dcf6c35583085aea721aac9)) | the price gaps down; `varAcc` jumps **+6.4M → 24,240,000**, far past the RSC's 4,000,000 spike threshold |
+| 2. RSC reacts | Lasna 5318007 | [reaction #667](https://lasna.reactscan.net/address/0xdadada4e8038641212262fd94e816d4a57cdc751/667) | RSC `0xac81…313e` (rvm `0xdadada…c751`) runs `react()` → emits `Callback(emergencySettle)` — no keeper |
+| **3. Callback lands** | Unichain 1301 | [**`0x1cb640fa…d634ac43`**](https://sepolia.uniscan.xyz/tx/0x1cb640fa6fc86c93c8528ff66cb9c3c55ab8799be002374cf93fd714d634ac43) · block 54361109 | Reactive relayer → callback proxy `0x9299…7fc4` → hook: `emergencySettle` → `EmergencySettled` + `EpochSettled`, **`epochId 0→1`** |
 
 The Portfolio screen reads this exact trail **live** from the chain via `getLogs`.
 
