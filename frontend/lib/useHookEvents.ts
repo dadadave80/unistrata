@@ -70,14 +70,27 @@ export function useHookEvents(): { events: FeedEvent[]; live: boolean } {
         const latest = await client!.getBlockNumber();
         const collected: { blockNumber?: bigint }[] = [];
         let to = latest;
+        let emptyStreak = 0;
         for (let i = 0; i < MAX_CHUNKS && collected.length < MAX_EVENTS; i++) {
           const from = to > CHUNK ? to - CHUNK : 0n;
           try {
             const logs = await client!.getLogs({ address: HOOK_ADDRESS, events: EVENT_ABIS as never, fromBlock: from, toBlock: to });
             collected.push(...(logs as { blockNumber?: bigint }[]));
-            // recent demo's events all sit near the tip — stop once an older chunk adds nothing
-            if (logs.length === 0 && collected.length > 0 && i > 0) break;
-          } catch { /* this chunk exceeded the RPC cap / rate — skip it, keep scanning */ }
+            // Stop only after a RUN of empty chunks, so a single empty gap between event clusters doesn't
+            // truncate older history (recent demo events cluster near the tip, but don't assume it).
+            emptyStreak = logs.length === 0 ? emptyStreak + 1 : 0;
+            if (emptyStreak >= 2 && collected.length > 0) break;
+          } catch {
+            // RPC range/rate cap on this chunk — retry the two halves once before giving up on it, so we
+            // recover its events rather than silently dropping the whole range.
+            const mid = from + (to - from) / 2n;
+            for (const [lo, hi] of [[mid + 1n, to], [from, mid]] as [bigint, bigint][]) {
+              try {
+                const logs = await client!.getLogs({ address: HOOK_ADDRESS, events: EVENT_ABIS as never, fromBlock: lo, toBlock: hi });
+                collected.push(...(logs as { blockNumber?: bigint }[]));
+              } catch { /* sub-chunk still failed — skip it */ }
+            }
+          }
           if (from === 0n) break;
           to = from - 1n;
         }

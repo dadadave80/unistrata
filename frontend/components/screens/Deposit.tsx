@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { parseUnits, formatUnits, maxUint256 } from 'viem';
-import { useAccount, useReadContracts, useWriteContract, useSignTypedData } from 'wagmi';
+import { useAccount, useReadContracts, useWriteContract, useSignTypedData, usePublicClient } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
 import { Button } from '@/components/Button';
 import { Badge } from '@/components/Badge';
@@ -10,10 +10,11 @@ import { Panel } from '@/components/Panel';
 import { TrancheCard } from '@/components/TrancheCard';
 import { NumberTicker } from '@/components/NumberTicker';
 import { ShieldCheck, Flame, LogOut } from 'lucide-react';
-import { HOOK_ADDRESS, TOKEN0, TOKEN1, TOKEN_WETH, TOKEN_USDC, erc20Abi, hookAbi, CHAIN_ID, txUrl } from '@/lib/contracts';
+import { HOOK_ADDRESS, TOKEN0, TOKEN1, TOKEN_WETH, TOKEN_USDC, BEDROCK_TOKEN, SEDIMENT_TOKEN, erc20Abi, hookAbi, CHAIN_ID, txUrl } from '@/lib/contracts';
 import { PERMIT2_ADDRESS, buildPermitBatch } from '@/lib/permit2';
 import { fmtUsd, shortAddr } from '@/lib/format';
 import { usePoolPrice } from '@/lib/usePoolPrice';
+import { useHookState } from '@/lib/useHookState';
 
 const depositCSS = `
 .dp__head { margin-bottom: var(--space-8); }
@@ -78,12 +79,12 @@ export function Deposit() {
 
   const isSenior = tranche === 'senior';
   const accent = isSenior ? 'senior' : 'junior';
-  const sharePrice = isSenior ? 1.0 : 0.97;
-  const shares = amount / sharePrice;
   // Live pool price (tUSDC per tWETH) from the v4 PoolManager's slot0 — never a hardcoded 3000, which
   // would mis-pair the deposit legs once the pool moves off the seed price (review #17). Falls back to
   // the seed price only while the read is loading.
   const livePrice = usePoolPrice() ?? 3000;
+  const live = useHookState(); // live tranche NAVs (bedrockNav = senior claim, sedimentNav = junior residual)
+  const client = usePublicClient({ chainId: CHAIN_ID });
 
   // live balances + current Permit2 allowances of the connected wallet (allowance is to Permit2, never the hook)
   const ZERO = '0x0000000000000000000000000000000000000000';
@@ -101,6 +102,28 @@ export function Deposit() {
   const allow0 = bals && bals[2].status === 'success' ? (bals[2].result as bigint) : 0n;
   const allow1 = bals && bals[3].status === 'success' ? (bals[3].result as bigint) : 0n;
 
+  // Tranche share supplies → live NAV/share (the hook mints minted = depositValue·supply/nav).
+  const { data: supplies } = useReadContracts({
+    contracts: [
+      { address: BEDROCK_TOKEN, abi: erc20Abi, functionName: 'totalSupply', chainId: CHAIN_ID },
+      { address: SEDIMENT_TOKEN, abi: erc20Abi, functionName: 'totalSupply', chainId: CHAIN_ID },
+    ],
+    query: { refetchInterval: 30_000 },
+  });
+  const beSupply = supplies && supplies[0].status === 'success' ? Number(formatUnits(supplies[0].result as bigint, 18)) : 0;
+  const seSupply = supplies && supplies[1].status === 'success' ? Number(formatUnits(supplies[1].result as bigint, 18)) : 0;
+  // Live NAV/share per tranche; fall back to ~1 while reads load or before the first deposit.
+  const beNavPerShare = beSupply > 0 && live.bedrockNav > 0 ? live.bedrockNav / beSupply : 1;
+  const seNavPerShare = seSupply > 0 && live.sedimentNav > 0 ? live.sedimentNav / seSupply : 1;
+  const navPerShare = isSenior ? beNavPerShare : seNavPerShare;
+
+  // The deposit pulls BOTH legs: the entered tUSDC + a price-matched tWETH leg. The hook mints shares off
+  // the numéraire value of BOTH legs, so the estimate counts both (≈ 2× the entered amount) at the LIVE
+  // NAV/share — not the entered amount at a hardcoded share price (review #2/#3).
+  const wethPaired = amount / livePrice;
+  const depositValueUsd = amount + wethPaired * livePrice;
+  const shares = navPerShare > 0 ? depositValueUsd / navPerShare : 0;
+
   // Testnet faucet — DemoERC20.mint is permissionless, so the wallet mints to itself.
   // Mints 10,000 tUSDC (+ tWETH so a balanced deposit actually works).
   async function claimFaucet() {
@@ -108,7 +131,7 @@ export function Deposit() {
     setFaucetBusy(true); setErr(null); setFaucetTx(null);
     try {
       await writeContractAsync({ address: TOKEN_USDC, abi: erc20Abi, functionName: 'mint', args: [address, parseUnits('10000', 6)], chainId: CHAIN_ID });
-      const tx = await writeContractAsync({ address: TOKEN_WETH, abi: erc20Abi, functionName: 'mint', args: [address, parseUnits('4', 18)], chainId: CHAIN_ID });
+      const tx = await writeContractAsync({ address: TOKEN_WETH, abi: erc20Abi, functionName: 'mint', args: [address, parseUnits('10', 18)], chainId: CHAIN_ID });
       setFaucetTx(tx);
       await refetchBals();
     } catch (e: unknown) {
@@ -135,14 +158,19 @@ export function Deposit() {
       // After this, deposits are just a signature — no further approvals. The hook can only ever pull
       // via a fresh, exact-amount, deadline-bounded Permit2 signature, so the standing allowance is inert
       // without the user's explicit sign-off each time.
+      let approveHash: `0x${string}` | undefined;
       if (allow0 < amount0Max) {
         setDepBusy('approve');
-        await writeContractAsync({ address: TOKEN0, abi: erc20Abi, functionName: 'approve', args: [PERMIT2_ADDRESS, maxUint256], chainId: CHAIN_ID });
+        approveHash = await writeContractAsync({ address: TOKEN0, abi: erc20Abi, functionName: 'approve', args: [PERMIT2_ADDRESS, maxUint256], chainId: CHAIN_ID });
       }
       if (allow1 < amount1Max) {
         setDepBusy('approve');
-        await writeContractAsync({ address: TOKEN1, abi: erc20Abi, functionName: 'approve', args: [PERMIT2_ADDRESS, maxUint256], chainId: CHAIN_ID });
+        approveHash = await writeContractAsync({ address: TOKEN1, abi: erc20Abi, functionName: 'approve', args: [PERMIT2_ADDRESS, maxUint256], chainId: CHAIN_ID });
       }
+      // Wait for the approval to MINE before signing/depositing: writeContractAsync resolves on submission,
+      // and Permit2.permitTransferFrom reverts (TRANSFER_FROM_FAILED) if the ERC-20 allowance to Permit2 is
+      // not yet effective. Nonce ordering means the last approve's receipt implies any earlier one mined too.
+      if (approveHash && client) await client.waitForTransactionReceipt({ hash: approveHash });
 
       // Sign the exact-amount batch transfer (spender = the hook). Gasless.
       setDepBusy('sign');
@@ -175,6 +203,8 @@ export function Deposit() {
   else if (depBusy === 'approve') { depLabel = 'Approve Permit2 in wallet…'; depDisabled = true; }
   else if (depBusy === 'sign') { depLabel = 'Sign the deposit…'; depDisabled = true; }
   else if (depBusy === 'deposit') { depLabel = 'Confirm deposit in wallet…'; depDisabled = true; }
+  else if (usdcBal < amount) { depLabel = `Need ${Math.ceil(amount).toLocaleString()} tUSDC — claim test tokens`; depDisabled = true; }
+  else if (wethBal < wethPaired) { depLabel = `Need ${wethPaired.toFixed(3)} tWETH — claim test tokens`; depDisabled = true; }
   else { depLabel = isSenior ? 'Sign & deposit to Bedrock' : 'Sign & deposit to Sediment'; }
 
   return (
@@ -199,8 +229,8 @@ export function Deposit() {
               <div className="dp__bal"><span className="k">tUSDC</span><span className="v"><NumberTicker value={usdcBal} decimals={0} /></span></div>
               <div className="dp__bal"><span className="k">tWETH</span><span className="v"><NumberTicker value={wethBal} decimals={3} /></span></div>
               {faucetTx
-                ? <span className="dp__deptx">Minted 10,000 tUSDC + 4 tWETH · <a href={txUrl(faucetTx)} target="_blank" rel="noreferrer">{shortAddr(faucetTx)} ↗</a></span>
-                : <p className="dp__helper">Claim mints 10,000 tUSDC + 4 tWETH to your wallet (DemoERC20, permissionless). Then deposit to a layer below.</p>}
+                ? <span className="dp__deptx">Minted 10,000 tUSDC + 10 tWETH · <a href={txUrl(faucetTx)} target="_blank" rel="noreferrer">{shortAddr(faucetTx)} ↗</a></span>
+                : <p className="dp__helper">Claim mints 10,000 tUSDC + 10 tWETH to your wallet (DemoERC20, permissionless). A deposit pulls BOTH tokens (full-range LP), so you need each.</p>}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', alignItems: 'flex-start' }}>
@@ -217,7 +247,7 @@ export function Deposit() {
             capacityPct={47} capacityLabel="Bedrock capacity filled"
             rows={[
               { label: 'Coverage ratio', value: '$13.5K Sediment below you', tone: 'senior' },
-              { label: 'NAV per share', value: '1.0000 (protected)' },
+              { label: 'NAV per share', value: `${beNavPerShare.toFixed(4)} (protected)` },
               { label: 'Coupon priced from', value: 'realized σ²' },
             ]}
             footnote="Protected from impermanent loss until the Sediment layer is exhausted. Coupon repriced every epoch." />
@@ -226,7 +256,7 @@ export function Deposit() {
             rows={[
               { label: 'Role', value: 'first-loss underwriter', tone: 'junior' },
               { label: 'Excess fees', value: 'all retained' },
-              { label: 'NAV per share', value: 'floats with the pool' },
+              { label: 'NAV per share', value: `${seNavPerShare.toFixed(4)} · floats` },
             ]}
             footnote="You absorb losses first. In exchange you keep all excess fees and the volatility risk premium." />
         </div>
@@ -255,7 +285,8 @@ export function Deposit() {
                     <NumberTicker value={shares} decimals={2} /> {isSenior ? 'beWETH' : 'seWETH'}
                   </span>
                 </div>
-                <div className="dp__line"><span className="k">Pairs with</span><span className="v">≈ {(amount / livePrice).toFixed(4)} tWETH @ {fmtUsd(livePrice, 0)}</span></div>
+                <div className="dp__line"><span className="k">Pairs with</span><span className="v">≈ {wethPaired.toFixed(4)} tWETH @ {fmtUsd(livePrice, 0)}</span></div>
+                <div className="dp__line"><span className="k">Total deposit</span><span className="v">≈ {fmtUsd(depositValueUsd, 0)} (both legs)</span></div>
                 <div className="dp__line"><span className="k">Settles</span><span className="v">next epoch boundary</span></div>
               </div>
 
