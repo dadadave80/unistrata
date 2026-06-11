@@ -3,6 +3,7 @@
 </p>
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/dadadave80/unistrata)
+---
 **A Uniswap v4 pool, priced as a capital structure.**
 
 > LPs are forced sellers of volatility with no buyer — impermanent loss is just the bill. **Unistrata builds the buyer.**
