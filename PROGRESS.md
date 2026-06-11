@@ -86,8 +86,8 @@ Still open (deferred per user): nothing material — BTT `.tree` artifacts and p
       `reactive-lib/=lib/reactive-lib/src/`. Pragma `>=0.8.0` (compatible w/ 0.8.30). Confirmed layout:
       `abstract-base/{AbstractReactive,AbstractCallback,AbstractPayer,AbstractPausableReactive}.sol`,
       `interfaces/IReactive.sol` (`react(LogRecord)`, `topic_0`).
-- [ ] (d) Remove template example hook (`Counter.sol`/`Counter.t.sol`) — **deferred** to end of Phase 1
-      so the suite stays green until `UnistrataHook` + tests replace them. `test/utils/` (BaseTest,
+- [x] (d) Remove template example hook (`Counter.sol`/`Counter.t.sol`) — **done** (script consolidation, 2026-06-11):
+      removed once `UnistrataHook` + its suite fully replaced them. `test/utils/` (BaseTest,
       Deployers, EasyPosm) and HookMiner usage are **kept** — the reusable parts.
 
 **Phase 0 gate:** ✅ **PASS** — §4 skeleton + CI in place, `reactive-lib` installed + remapped,
