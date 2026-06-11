@@ -136,6 +136,20 @@ contract UnistrataDepositTest is BaseTest {
         assertGt(hook.sediment().totalSupply(), supply1);
     }
 
+    // a misconfigured coupon clamp (rMin > rMax) is rejected at deploy, not left to brick the first
+    // settlement inside couponRate — review #23
+    function test_constructor_RevertWhen_rMinExceedsRMax() public {
+        UnistrataHook.Config memory bad = _cfg();
+        bad.rMin = 0.6e18;
+        bad.rMax = 0.5e18;
+        address badAddr = address(
+            uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG)
+                ^ (0x5552 << 144)
+        );
+        vm.expectRevert(); // constructor reverts ⇒ deployCodeTo fails to produce runtime bytecode
+        deployCodeTo("UnistrataHook.sol:UnistrataHook", abi.encode(poolManager, bad, address(0xCA11)), badAddr);
+    }
+
     // only the hook holds the v4 position; depositor holds tranche shares, not a v4 position
     function test_deposit_givesSharesNotPosition() public {
         uint256 shares = _depositSediment(100e18, 100e18);

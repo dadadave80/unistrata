@@ -82,6 +82,8 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     error UnistrataHook__WithdrawNotEligible();
     error UnistrataHook__WithdrawAlreadyClaimed();
     error UnistrataHook__BadPermit();
+    error UnistrataHook__InvalidRateBounds();
+    error UnistrataHook__SharesOverflow();
 
     /// @notice Emitted once per new-block observation; the Reactive circuit breaker subscribes to this.
     event UnistrataObservation(int24 blockTickDelta, uint256 varAcc);
@@ -166,6 +168,10 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         BaseHook(_poolManager)
         AbstractCallback(callbackSender)
     {
+        // Fail fast on a misconfigured coupon clamp: with rMin > rMax, couponRate reverts inside every
+        // settlement, permanently bricking the hook (no epoch can ever roll). Reject it at deploy (#23).
+        if (cfg.rMin > cfg.rMax) revert UnistrataHook__InvalidRateBounds();
+
         // The hook is deployed via CREATE2 (HookMiner address mining), so AbstractCallback set
         // rvm_id = msg.sender = the CREATE2 factory. Override it to the deploying EOA so it matches the
         // RSC's rvm id (the same EOA deploys the RSC) — otherwise every callback reverts "Authorized RVM
@@ -305,6 +311,9 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     ///         must approve this hook for the tranche token.
     /// @return id The request id, used in {claim}.
     function requestWithdraw(bool isBedrock, uint256 shares) external nonReentrant returns (uint256 id) {
+        // The request record stores shares as uint128; reject anything larger BEFORE escrowing so we can
+        // never take the full uint256 yet record a truncated (smaller) claim, stranding the excess (#21).
+        if (shares > type(uint128).max) revert UnistrataHook__SharesOverflow();
         StratumToken token = isBedrock ? bedrock : sediment;
         token.transferFrom(msg.sender, address(this), shares); // escrow
 

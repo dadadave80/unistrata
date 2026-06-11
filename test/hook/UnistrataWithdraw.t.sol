@@ -148,6 +148,14 @@ contract UnistrataWithdrawTest is BaseTest {
         assertApproxEqAbs(hook.bedrockNav() + hook.sedimentNav(), hook.totalAssets(), 1e7);
     }
 
+    // a withdrawal request larger than uint128 reverts (instead of escrowing the full amount but recording
+    // a truncated claim, which would strand the excess shares in the hook) — review #21
+    function test_requestWithdraw_RevertWhen_sharesOverflowUint128() public {
+        vm.prank(alice);
+        vm.expectRevert(UnistrataHook.UnistrataHook__SharesOverflow.selector);
+        hook.requestWithdraw(false, uint256(type(uint128).max) + 1);
+    }
+
     function test_claim_RevertWhen_alreadyClaimed() public {
         uint256 shares = hook.bedrock().balanceOf(alice) / 2;
         vm.prank(alice);
