@@ -34,7 +34,7 @@ export const TESTNET = {
       tx: '0x006a1a…5cd3', txUrl: txUrl('0x006a1a8c805304a481ed47055c5ee93f2e9ee313e4ed17d6ff0cff48b54f5cd3'),
       message: 'Vol spike → <span class="em">emergencySettle()</span> closed epoch 0 early, rolled to epoch 1 (EmergencySettled + EpochSettled)' },
     { time: 'Lasna', kind: 'reactive', epoch: 0, chain: 'Reactive Lasna',
-      tx: 'RSC 0x3cad51…', txUrl: `${REACT_EXPLORER}/address/${RSC_ADDRESS}`,
+      tx: 'RSC 0xac81c6…', txUrl: `${REACT_EXPLORER}/address/${RSC_ADDRESS}`,
       message: 'Reactive Network <span class="fn">react()</span> fired → Callback(emergencySettle) emitted (Reactscan)' },
     { time: 'blk 54296197', kind: 'info', epoch: 0, chain: 'Unichain Sepolia',
       tx: '0xf096b8…e52d', txUrl: txUrl('0xf096b8cf17dad9f69e7ef337c7b1598e6760fa85b82609d10688f7adeae2e52d'),

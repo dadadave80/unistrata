@@ -37,7 +37,7 @@ const WETH_IS_TOKEN0 = (TOKEN0 as string).toLowerCase() === (TOKEN_WETH as strin
 /**
  * Live pool price in tUSDC per tWETH, read straight from the v4 PoolManager's slot0 (sqrtPriceX96) — no
  * oracle, no hardcoded constant. Returns undefined while loading or if the read looks implausible, so
- * callers can fall back. Assumes the live token ordering (WETH = token0, 18 dec; USDC = token1, 6 dec).
+ * callers can fall back. Works for either address sort (WETH as token0 OR token1), derived from TOKEN0.
  */
 export function usePoolPrice(): number | undefined {
   const { data } = useReadContract({
@@ -49,13 +49,18 @@ export function usePoolPrice(): number | undefined {
     query: { refetchInterval: 30_000 },
   });
 
-  if (!data || !WETH_IS_TOKEN0) return undefined;
+  if (!data) return undefined;
   const sqrtPriceX96 = BigInt(data) & ((1n << 160n) - 1n); // low 160 bits of the packed slot0
   if (sqrtPriceX96 === 0n) return undefined;
 
-  // price(token1/token0, raw) = (sqrtPriceX96 / 2^96)^2; tUSDC per tWETH = that · 10^(18 − 6).
-  // Compute with an extra 1e6 of integer precision, then divide back.
-  const scaled = (sqrtPriceX96 * sqrtPriceX96 * 10n ** 18n) / (1n << 192n);
+  // rawPrice = (sqrtPriceX96 / 2^96)^2 = token1 per token0 (raw units). We want tUSDC per tWETH, and WETH
+  // may be token0 OR token1 depending on the address sort, so handle both. Carry an extra 1e6 of integer
+  // precision through the division, then divide it back out.
+  const sq = sqrtPriceX96 * sqrtPriceX96;
+  const Q192 = 1n << 192n;
+  const scaled = WETH_IS_TOKEN0
+    ? (sq * 10n ** 18n) / Q192 // USDC(token1,6) per WETH(token0,18) = rawPrice · 10^(18−6)
+    : (10n ** 18n * Q192) / sq; // USDC(token0,6) per WETH(token1,18) = 10^(18−6) / rawPrice
   const price = Number(scaled) / 1e6;
 
   // Sanity-bound: a mis-decoded read should fall back to the caller's default, never misprice a deposit.

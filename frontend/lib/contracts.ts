@@ -1,8 +1,8 @@
 // Live Unistrata deployment on Unichain Sepolia (1301) — see REACTIVE.md. (EIP-2612 redeploy, Jun 2026.)
-export const HOOK_ADDRESS = '0xfc4f1c6aecad1507dd0ec4af4d72f62378c25840' as const;
-export const RSC_ADDRESS = '0x3cad51414bbd94e19c47ef47fe2d65f89e467eea' as const; // UnistrataReactive on Reactive Lasna (5318007)
-export const TOKEN_WETH = '0x34b4626268da509c69e4cf03b92164b048fb9f8d' as const; // tWETH, 18 dec
-export const TOKEN_USDC = '0x5ffa4a8d379cb2471b1d4cdf2f5f2d3eca282dd6' as const; // tUSDC, 6 dec (numéraire)
+export const HOOK_ADDRESS = '0x1c92498828ef724e488877cb8df251a406611840' as const;
+export const RSC_ADDRESS = '0xac81c63d936b6a751ecdd412c7c956dc70f9313e' as const; // UnistrataReactive on Reactive Lasna (5318007)
+export const TOKEN_WETH = '0x7a498c34a8dc3b6502889c21218da0f8696b7bb6' as const; // tWETH, 18 dec
+export const TOKEN_USDC = '0x70c598941d7ced513dc01f3775a52cf0e5b47d6e' as const; // tUSDC, 6 dec (numéraire)
 export const CHAIN_ID = 1301 as const;
 
 // Block explorers — single source of truth (used by the live feed, tx links, wallet config).
@@ -11,14 +11,14 @@ export const REACT_EXPLORER = 'https://lasna.reactscan.net' as const; // Reactiv
 export const txUrl = (hash: string) => `${EXPLORER}/tx/${hash}`;
 export const addrUrl = (addr: string) => `${EXPLORER}/address/${addr}`;
 
-// v4 sorts by address → token0 = lower address. tWETH (0x34b4) < tUSDC (0x5ffa).
-// Verified on-chain: the hook's boundKey is currency0=WETH(18), currency1=USDC(6).
-export const TOKEN0 = TOKEN_WETH; // currency0 (WETH, 18 dec)
-export const TOKEN1 = TOKEN_USDC; // currency1 (USDC, 6 dec)
+// v4 sorts by address → token0 = lower address. On this deploy tUSDC (0x70c5…) < tWETH (0x7a49…),
+// so the sort FLIPPED vs the prior deploy: currency0 = USDC (6 dec), currency1 = WETH (18 dec).
+export const TOKEN0 = TOKEN_USDC; // currency0 (USDC, 6 dec)
+export const TOKEN1 = TOKEN_WETH; // currency1 (WETH, 18 dec)
 
 // Tranche share tokens (StratumToken, ERC20) — deployed by the hook constructor. Verified on-chain.
-export const BEDROCK_TOKEN = '0x3848b7ab1cb7d33212d28b6cf6eac9f9d65b0b8c' as const; // BEDR (senior shares)
-export const SEDIMENT_TOKEN = '0x953636fc36a204dc2bb775fa4ca0195bf748bd0a' as const; // SEDI (junior shares)
+export const BEDROCK_TOKEN = '0x27b1a8d9e5cfced9c765ef3c05fbd500834c4c17' as const; // BEDR (senior shares)
+export const SEDIMENT_TOKEN = '0xdec08761743beef3a11ebd9f8c16c26f56cf1c50' as const; // SEDI (junior shares)
 
 // Minimal UnistrataHook ABI — the reads the UI needs + the deposit write.
 export const hookAbi = [
