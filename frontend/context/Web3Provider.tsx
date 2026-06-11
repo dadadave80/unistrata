@@ -11,8 +11,8 @@ const queryClient = new QueryClient();
 const metadata = {
   name: 'Unistrata',
   description: 'A liquidity pool, priced as a capital structure — Bedrock (senior) / Sediment (junior).',
-  url: 'https://unistrata.app',
-  icons: ['/strata-mark.svg'],
+  url: 'https://unistrata.vercel.app', // must match the deployed origin (Verify API + social-login redirect)
+  icons: ['https://unistrata.vercel.app/strata-mark.svg'],
 };
 
 // Initialize Reown AppKit once at module load (dark, mineral theme to match the brand).
@@ -23,7 +23,13 @@ createAppKit({
   metadata,
   themeMode: 'dark',
   themeVariables: { '--w3m-accent': '#4E97A6', '--w3m-border-radius-master': '2px' },
-  features: { analytics: false, email: false, socials: [] },
+  // Social + email login (Reown embedded wallet) alongside injected/WalletConnect wallets.
+  features: {
+    analytics: false,
+    email: true,
+    socials: ['google', 'x', 'github', 'discord', 'apple', 'farcaster'],
+    emailShowWallets: true,
+  },
 });
 
 export function Web3Provider({ children }: { children: React.ReactNode }) {
