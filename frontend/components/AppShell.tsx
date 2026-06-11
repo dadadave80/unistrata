@@ -10,7 +10,7 @@ import { Layers, ArrowDownToLine, ArrowUpFromLine, Wallet, SlidersHorizontal } f
 import { StrataCore } from '@/components/StrataCore';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
-import { shortAddr } from '@/lib/format';
+import { fmtUsd, shortAddr } from '@/lib/format';
 
 const NAV = [
   { href: '/', label: 'Thesis', Icon: Layers },
@@ -92,7 +92,7 @@ export function AppShell({ seniorNav, juniorNav, scaleMax, sweepKey, children }:
           </div>
           <div className="glyphrow">
             <StrataCore glyph height={46} seniorNav={seniorNav} juniorNav={juniorNav} scaleMax={scaleMax} sweepKey={sweepKey} />
-            <div className="meta">Bedrock <b>${(seniorNav / 1000).toFixed(1)}K</b><br />Sediment <b>${(juniorNav / 1000).toFixed(1)}K</b></div>
+            <div className="meta">Bedrock <b>{fmtUsd(seniorNav, 1)}</b><br />Sediment <b>{fmtUsd(juniorNav, 1)}</b></div>
           </div>
         </div>
       </aside>
