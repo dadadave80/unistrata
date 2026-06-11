@@ -48,6 +48,7 @@ const psCSS = `
 .ps__empty { font-family: var(--font-sans); font-size: 13.5px; color: var(--text-secondary); line-height:1.55; padding: 6px 2px var(--space-5); }
 .ps__wq { display:flex; align-items:center; justify-content:space-between; gap: var(--space-4); font-family: var(--font-mono); font-size: 12.5px; color: var(--text-secondary); }
 .ps__wq b { color: var(--senior-200); font-weight:500; }
+.ps__main { display:flex; flex-direction:column; min-width:0; }
 .ps__gaugewrap { display:flex; align-items:center; gap: var(--space-6); }
 .ps__gaugemeta { display:flex; flex-direction: column; gap: var(--space-4); }
 .ps__feedwrap { margin-top: var(--space-7); }
@@ -122,7 +123,8 @@ export function Portfolio() {
       </div>
 
       <div className="ps__grid">
-        {/* Pool chart — the live capital structure */}
+        {/* Pool — live capital structure, with the on-chain feed beneath it */}
+        <div className="ps__main">
         <Panel padded>
           <div className="ps__corehead">
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>Pool · live capital structure</div>
@@ -140,6 +142,13 @@ export function Portfolio() {
             <div className="ps__navcell"><Stat label="Sediment outstanding" size="sm" value={<NumberTicker value={seSupply} decimals={0} />} unit="SEDI" /></div>
           </div>
         </Panel>
+          <div className="ps__feedwrap">
+            <EventFeed events={liveFeed.events} maxHeight={320}
+              title="Reactive Network · live on-chain feed"
+              emptyLabel="No on-chain events yet. Run the live-market demo (01_LiveMarket) to populate the feed — it streams here as the hook emits them."
+              explorerBase={EXPLORER} />
+          </div>
+        </div>
 
         {/* Your position */}
         <div className="ps__side">
@@ -239,13 +248,6 @@ export function Portfolio() {
             <EpochCountdown epoch={live.epoch} secondsLeft={live.secondsToSettle} epochLength={live.epochDuration} running />
           </Panel>
         </div>
-      </div>
-
-      <div className="ps__feedwrap">
-        <EventFeed events={liveFeed.events} maxHeight={320}
-          title="Reactive Network · live on-chain feed"
-          emptyLabel="No on-chain events yet. Run the live-market demo (01_LiveMarket) to populate the feed — it streams here as the hook emits them."
-          explorerBase={EXPLORER} />
       </div>
     </div>
   );
