@@ -148,6 +148,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     // --- epoch state (brief §3.4/§3.5) ---
     uint256 public epochId;
     uint256 public epochStart;
+    uint256 public lastCouponTime; // last timestamp the bedrock coupon was accrued into bedrockNav (§3.4)
     uint256 public bedrockRate; // r_epoch, fixed at the start of the current epoch (WAD APR)
     uint256 public sigma2Ewma;
     uint256 public feeYieldEwma;
@@ -205,6 +206,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         returns (uint256 shares)
     {
         if (!poolInitialized) revert UnistrataHook__NotInitialized();
+        _accrueCoupon(); // grow the senior claim to now first, so this deposit earns no coupon for the past
         // Price shares off the tranche's LIVE value (its waterfall slice of totalAssets) captured BEFORE
         // liquidity is added — never off the stale internal NAV accumulator.
         uint256 navPre = _liveTrancheNav(isBedrock);
@@ -236,8 +238,9 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         uint256 amount0Max = permit.permitted[0].amount;
         uint256 amount1Max = permit.permitted[1].amount;
 
-        // Price shares off the tranche's LIVE value BEFORE pulling tokens (pulling to the hook would
-        // otherwise inflate totalAssets via its idle balance) and before adding liquidity.
+        // Grow the senior claim to now, then price shares off the tranche's LIVE value BEFORE pulling
+        // tokens (pulling to the hook would otherwise inflate totalAssets via idle) and before liquidity.
+        _accrueCoupon();
         uint256 navPre = _liveTrancheNav(isBedrock);
 
         // Pull the maxes from the caller to this hook via Permit2 (signed, exact, deadline-bounded).
@@ -322,6 +325,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         if (req.claimed) revert UnistrataHook__WithdrawAlreadyClaimed();
         if (epochId < req.eligibleEpoch) revert UnistrataHook__WithdrawNotEligible();
         req.claimed = true;
+        _accrueCoupon(); // accrue the coupon up to now so the redemption prices off the live senior claim
 
         bytes memory res =
             poolManager.unlock(abi.encode(Action.Withdraw, abi.encode(msg.sender, req.isBedrock, uint256(req.shares))));
@@ -375,9 +379,14 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     /// @dev The waterfall split + impairment signals; defers the epoch roll to keep the stack shallow.
     function _settleWaterfall(uint256 A, uint256 feesValue) internal {
         uint256 dt = block.timestamp - epochStart;
-        uint256 sPrev = bedrockNav;
+        uint256 sPrev = bedrockNav; // senior claim BEFORE the final coupon stretch (for impairment signals)
 
-        uint256 sTarget = WaterfallLib.bedrockTarget(sPrev, bedrockRate, dt, 0);
+        // Fold the coupon for the remaining un-accrued stretch into the senior claim. With continuous
+        // accrual the claim already carries the coupon for every earlier sub-interval, so mid-epoch
+        // deposits never earn coupon for time before they arrived (H-3) — equivalent to the old
+        // single-shot bedrockTarget when there were no mid-epoch flows.
+        _accrueCoupon();
+        uint256 sTarget = bedrockNav;
         (uint256 sNew, uint256 jNew, bool impaired) = WaterfallLib.settle(A, sTarget);
 
         // Two distinct impairment signals (the literal §3.5 flag, refined by principal loss).
@@ -408,9 +417,23 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         uint256 settledId = epochId;
         epochId = settledId + 1;
         epochStart = block.timestamp;
+        lastCouponTime = block.timestamp; // coupon clock restarts with the new epoch (and its new rate)
         varAccAtEpochStart = varAcc;
 
         emit EpochSettled(settledId, A, bedrockNav, sedimentNav, varDelta, feesValue, bedrockRate);
+    }
+
+    /// @dev Accrue the bedrock coupon continuously: grow the senior claim by `r·Δt` for the time elapsed
+    ///      since the last accrual, at the current epoch's rate. Called at the start of every interaction
+    ///      that reads or mutates the claim (deposit, withdraw, settle) so principal is credited the
+    ///      coupon ONLY for the time it was actually underwriting — late deposits earn no past coupon and
+    ///      withdrawn principal stops earning, time-weighted exactly (brief §3.4 honesty; review H-3).
+    function _accrueCoupon() internal {
+        uint256 last = lastCouponTime;
+        if (block.timestamp > last && bedrockNav != 0 && bedrockRate != 0) {
+            bedrockNav = WaterfallLib.bedrockTarget(bedrockNav, bedrockRate, block.timestamp - last, 0);
+        }
+        lastCouponTime = block.timestamp;
     }
 
     //*//////////////////////////////////////////////////////////////////////////
@@ -676,6 +699,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         (tickLower, tickUpper,,) = NavLib.fullRangeBounds(key.tickSpacing);
 
         epochStart = block.timestamp;
+        lastCouponTime = block.timestamp;
         bedrockRate = rMin; // no history yet → coupon floored
 
         return BaseHook.afterInitialize.selector;
