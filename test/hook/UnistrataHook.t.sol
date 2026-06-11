@@ -60,8 +60,8 @@ contract UnistrataHookFoundationTest is BaseTest {
     }
 
     function test_construction_deploysStratumTokens() public view {
-        assertEq(hook.bedrock().symbol(), "beWETH");
-        assertEq(hook.sediment().symbol(), "seWETH");
+        assertEq(hook.bedrock().symbol(), "BEDR");
+        assertEq(hook.sediment().symbol(), "SEDI");
         assertEq(hook.bedrock().hook(), address(hook));
         assertEq(hook.sediment().hook(), address(hook));
         assertEq(hook.bedrock().decimals(), 18);

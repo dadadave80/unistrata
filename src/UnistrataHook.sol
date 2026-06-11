@@ -68,7 +68,7 @@ import {WaterfallLib} from "src/libraries/WaterfallLib.sol";
 /// @title UnistrataHook
 /// @author David Dada (https://github.com/dadadave80)
 /// @notice Uniswap v4 hook that turns one pool into a bedrock/sediment capital structure (Unistrata).
-///         The hook owns all pool liquidity; depositors hold tranche shares (beWETH / seWETH) instead of
+///         The hook owns all pool liquidity; depositors hold tranche shares (BEDR / SEDI) instead of
 ///         v4 positions. It measures realized variance from the pool's own tick path, prices a bedrock
 ///         coupon off that variance, and settles a bedrock/sediment waterfall each epoch.
 /// @dev Single-pool vault: the hook binds to the first pool that initializes it and rejects others.
@@ -127,6 +127,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     error UnistrataHook__BadPermit();
     error UnistrataHook__InvalidRateBounds();
     error UnistrataHook__SharesOverflow();
+    error UnistrataHook__InsufficientShares();
 
     /// @notice Emitted once per new-block observation; the Reactive circuit breaker subscribes to this.
     event UnistrataObservation(int24 blockTickDelta, uint256 varAcc);
@@ -162,8 +163,8 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     ISignatureTransfer internal constant PERMIT2 = ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
     // --- tranche share tokens (one each, deployed at construction) ---
-    StratumToken public immutable bedrock; // beWETH
-    StratumToken public immutable sediment; // seWETH
+    StratumToken public immutable bedrock; // BEDR
+    StratumToken public immutable sediment; // SEDI
 
     // --- immutable config ---
     bool public immutable numeraireIsToken1;
@@ -227,8 +228,8 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         // slither-disable-next-line tx-origin
         rvm_id = tx.origin;
 
-        bedrock = new StratumToken("Unistrata Bedrock", "beWETH", address(this));
-        sediment = new StratumToken("Unistrata Sediment", "seWETH", address(this));
+        bedrock = new StratumToken("Unistrata Bedrock", "BEDR", address(this));
+        sediment = new StratumToken("Unistrata Sediment", "SEDI", address(this));
 
         numeraireIsToken1 = cfg.numeraireIsToken1;
         decimals0 = cfg.decimals0;
@@ -250,13 +251,33 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
 
     /// @notice Deposit token0+token1 into a tranche; the hook adds full-range liquidity and mints
     ///         shares at the tranche's current NAV/share. Caller must approve this hook for both tokens.
-    /// @param isBedrock   True to mint bedrock (beWETH), false for sediment (seWETH).
+    /// @param isBedrock   True to mint bedrock (BEDR), false for sediment (SEDI).
     /// @param amount0Max Max token0 to pull from the caller.
     /// @param amount1Max Max token1 to pull from the caller.
     /// @return shares    Tranche shares minted to the caller.
     function deposit(bool isBedrock, uint256 amount0Max, uint256 amount1Max)
         external
         nonReentrant
+        returns (uint256 shares)
+    {
+        // Convenience overload with no slippage bound. Shares are priced off the LIVE pool price, so for
+        // user-facing deposits prefer the 4-arg variant with a minSharesOut.
+        shares = _deposit(isBedrock, amount0Max, amount1Max, 0);
+    }
+
+    /// @notice As {deposit}, but reverts if the minted shares would be below `minSharesOut` — a slippage
+    ///         bound against price movement (drift or a sandwich) between submission and execution.
+    function deposit(bool isBedrock, uint256 amount0Max, uint256 amount1Max, uint256 minSharesOut)
+        external
+        nonReentrant
+        returns (uint256 shares)
+    {
+        shares = _deposit(isBedrock, amount0Max, amount1Max, minSharesOut);
+    }
+
+    /// @dev Shared deposit body (payer == caller via ERC-20 allowance). Reverts if shares < minSharesOut.
+    function _deposit(bool isBedrock, uint256 amount0Max, uint256 amount1Max, uint256 minSharesOut)
+        internal
         returns (uint256 shares)
     {
         if (!poolInitialized) revert UnistrataHook__NotInitialized();
@@ -267,6 +288,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         // payer == caller: the hook pulls owed tokens from the caller's ERC-20 allowance during settle.
         (uint256 depositValue, uint256 used0, uint256 used1) = _runDeposit(msg.sender, isBedrock, amount0Max, amount1Max);
         shares = _finalizeDeposit(isBedrock, navPre, depositValue, used0, used1, msg.sender);
+        if (shares < minSharesOut) revert UnistrataHook__InsufficientShares();
         _syncSediment();
         if (isBedrock) _enforceAttachmentCap();
     }
@@ -275,7 +297,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     ///         signs a batch transfer (token0 + token1, exact amounts, deadline-bounded); the hook pulls
     ///         the maxes to itself via Permit2, adds liquidity, mints shares, and refunds the unused
     ///         remainder. Removes the unbounded-approval footgun.
-    /// @param isBedrock True for bedrock (beWETH), false for sediment (seWETH).
+    /// @param isBedrock True for bedrock (BEDR), false for sediment (SEDI).
     /// @param permit    Permit2 batch permit — permitted[0] = token0/amount0Max, permitted[1] = token1/amount1Max.
     /// @param signature The caller's EIP-712 signature over `permit` (spender = this hook).
     function depositWithPermit(
@@ -283,6 +305,26 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         ISignatureTransfer.PermitBatchTransferFrom calldata permit,
         bytes calldata signature
     ) external nonReentrant returns (uint256 shares) {
+        shares = _depositWithPermit(isBedrock, permit, signature, 0);
+    }
+
+    /// @notice As {depositWithPermit}, but reverts if the minted shares would be below `minSharesOut`.
+    function depositWithPermit(
+        bool isBedrock,
+        ISignatureTransfer.PermitBatchTransferFrom calldata permit,
+        bytes calldata signature,
+        uint256 minSharesOut
+    ) external nonReentrant returns (uint256 shares) {
+        shares = _depositWithPermit(isBedrock, permit, signature, minSharesOut);
+    }
+
+    /// @dev Shared Permit2 deposit body (payer == hook via a signed pull). Reverts if shares < minSharesOut.
+    function _depositWithPermit(
+        bool isBedrock,
+        ISignatureTransfer.PermitBatchTransferFrom calldata permit,
+        bytes calldata signature,
+        uint256 minSharesOut
+    ) internal returns (uint256 shares) {
         if (!poolInitialized) revert UnistrataHook__NotInitialized();
         if (
             permit.permitted.length != 2 || permit.permitted[0].token != Currency.unwrap(boundKey.currency0)
@@ -308,6 +350,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         (uint256 depositValue, uint256 used0, uint256 used1) =
             _runDeposit(address(this), isBedrock, amount0Max, amount1Max);
         shares = _finalizeDeposit(isBedrock, navPre, depositValue, used0, used1, msg.sender);
+        if (shares < minSharesOut) revert UnistrataHook__InsufficientShares();
 
         // Refund the unused remainder to the caller.
         if (amount0Max > used0) boundKey.currency0.transfer(msg.sender, amount0Max - used0);

@@ -150,6 +150,21 @@ contract UnistrataDepositTest is BaseTest {
         deployCodeTo("UnistrataHook.sol:UnistrataHook", abi.encode(poolManager, bad, address(0xCA11)), badAddr);
     }
 
+    // the minSharesOut slippage bound reverts when the minted shares would fall short (review #1)
+    function test_deposit_RevertWhen_belowMinSharesOut() public {
+        vm.prank(alice);
+        vm.expectRevert(UnistrataHook.UnistrataHook__InsufficientShares.selector);
+        hook.deposit(false, 100e18, 100e18, type(uint256).max); // impossible minimum → revert
+    }
+
+    // an achievable minSharesOut passes and returns the minted shares
+    function test_deposit_succeedsAtAchievableMinShares() public {
+        vm.prank(alice);
+        uint256 shares = hook.deposit(false, 100e18, 100e18, 1); // tiny floor → must mint far more
+        assertGt(shares, 1);
+        assertEq(hook.sediment().balanceOf(alice), shares);
+    }
+
     // only the hook holds the v4 position; depositor holds tranche shares, not a v4 position
     function test_deposit_givesSharesNotPosition() public {
         uint256 shares = _depositSediment(100e18, 100e18);

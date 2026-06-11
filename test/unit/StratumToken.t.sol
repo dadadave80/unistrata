@@ -13,12 +13,12 @@ contract StratumTokenTest is Test {
     address internal bob = makeAddr("bob");
 
     function setUp() public {
-        token = new StratumToken("Unistrata Bedrock", "beWETH", hook);
+        token = new StratumToken("Unistrata Bedrock", "BEDR", hook);
     }
 
     function test_constructor_setsMetadataAndHook() public view {
         assertEq(token.name(), "Unistrata Bedrock");
-        assertEq(token.symbol(), "beWETH");
+        assertEq(token.symbol(), "BEDR");
         assertEq(token.decimals(), 18);
         assertEq(token.hook(), hook);
         assertEq(token.totalSupply(), 0);
