@@ -208,7 +208,8 @@ The whole deployment is **one script with one entry point** — `00_SetupUnistra
 | # | script | what it does | target |
 |---|---|---|---|
 | 00 | `00_SetupUnistrata` (`run()`) | One-shot orchestration. **Origin (Unichain Sepolia):** deploys tWETH/tUSDC, HookMiner-mines + CREATE2-deploys **the hook** (decimals/ordering/numéraire/init-price derived from the real token addresses), `initialize`s the pool, funds the hook via the callback proxy, and seeds a deposit into both tranches (**Sediment first** for the attachment cap). **Lasna:** deploys the RSC (its constructor subscribes: CRON + `UnistrataObservation`; `TICKS_PER_EPOCH=120`, `SPIKE_THRESHOLD=4,000,000`) and funds it. Writes all addresses to `.env`. Needs `HOOK_FUNDING_WEI` + `RSC_FUNDING_WEI`. | both (forks) |
-| **01** | **`01_LiveMarket`** | **The live demo.** A realistic high-volume WETH/USDC session: Phase 1 normal trading (volume → fees, low variance), then Phase 2 a ~40% ETH crash that spikes `varAcc` past the trigger → cross-chain `emergencySettle` → **Bedrock NAV holds (protected), Sediment absorbs the drawdown**. Kept separate because it needs `--slow` (one observation per block). Verified by `test/sim/LiveMarketDemo.t.sol`. | `unichain_sep` |
+| **01** | **`01_LiveMarket`** | **The crash demo.** A realistic high-volume WETH/USDC session: Phase 1 normal trading (volume → fees, low variance), then Phase 2 a ~40% ETH crash that spikes `varAcc` past the trigger → cross-chain `emergencySettle` → **Bedrock NAV holds (protected), Sediment absorbs the drawdown**. Kept separate because it needs `--slow` (one observation per block). Verified by `test/sim/LiveMarketDemo.t.sol`. | `unichain_sep` |
+| **02** | **`02_GreatMarket`** | **The good-market demo — the mirror of 01.** Phase 1 volume (fees), then Phase 2 a gentle ~65% ETH rally in *small* steps so realized variance stays LOW (no breaker fires), and the rally + fees grow the pool; a Phase 3 mark-to-market deposit then shows **Sediment banking the surplus (levered — ~+58% in the harness) while Bedrock stays protected**, and the low variance reprices the coupon HIGH at the next normal settlement. Needs `--slow`. Verified by `test/sim/GreatMarketDemo.t.sol`. | `unichain_sep` |
 
 Once cumulative `varAcc ≥ 4,000,000`, the RSC's `react()` fires `emergencySettle` back to the hook cross-chain (~1–3 min), bumping `epochId`.
 
@@ -309,7 +310,7 @@ src/
   StratumToken.sol             # the BEDR / SEDI tranche share token (ERC20Permit)
   libraries/{VarianceLib,NavLib,WaterfallLib}.sol
   reactive/UnistrataReactive.sol   # the RSC (CRON heartbeat + volatility circuit breaker)
-script/unistrata/              # 00_SetupUnistrata (full bring-up) + 01_LiveMarket (--slow demo) + runbook
+script/unistrata/              # 00_SetupUnistrata (bring-up) + 01_LiveMarket / 02_GreatMarket (--slow demos)
 test/                          # 149 tests incl. stateful invariants
 sim/                           # Phase-5 scenario replays → sim/out/*.json (the money chart)
 frontend/                      # Next.js + Reown AppKit + wagmi/viem (bun)
