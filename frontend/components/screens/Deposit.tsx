@@ -307,8 +307,8 @@ export function Deposit() {
               <div className="dp__faucetbal">
                 <Badge variant="neutral" size="sm">Unichain Sepolia</Badge>
                 <span className="dp__wallet"><span className="d" />{address ? shortAddr(address) : ''}<button title="Manage" onClick={() => open()}><LogOut size={14} /></button></span>
-                <div className="dp__bal"><span className="k">Test tUSDC</span><span className="v"><NumberTicker value={usdcBal} decimals={0} /> <small>tUSDC</small></span></div>
-                <div className="dp__bal"><span className="k">Test tWETH</span><span className="v"><NumberTicker value={wethBal} decimals={2} /> <small>tWETH</small></span></div>
+                <div className="dp__bal"><span className="k">Test USDC</span><span className="v"><NumberTicker value={usdcBal} decimals={0} /> <small>tUSDC</small></span></div>
+                <div className="dp__bal"><span className="k">Test WETH</span><span className="v"><NumberTicker value={wethBal} decimals={2} /> <small>tWETH</small></span></div>
               </div>
               {faucetTx
                 ? <span className="dp__drip"><CheckCircle2 size={14} /> Dripped 10,000 tUSDC + 10 tWETH · <a href={txUrl(faucetTx)} target="_blank" rel="noreferrer">{shortAddr(faucetTx)} ↗</a></span>

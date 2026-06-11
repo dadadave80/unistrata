@@ -92,7 +92,7 @@ export function AppShell({ seniorNav, juniorNav, scaleMax, sweepKey, children }:
           </div>
           <div className="glyphrow">
             <StrataCore glyph height={46} seniorNav={seniorNav} juniorNav={juniorNav} scaleMax={scaleMax} sweepKey={sweepKey} />
-            <div className="meta">Bedrock <b>{fmtUsd(seniorNav, 1)}</b><br />Sediment <b>{fmtUsd(juniorNav, 1)}</b></div>
+            <div className="meta">Sediment <b>{fmtUsd(juniorNav, 1)}</b><br />Bedrock <b>{fmtUsd(seniorNav, 1)}</b></div>
           </div>
         </div>
       </aside>
