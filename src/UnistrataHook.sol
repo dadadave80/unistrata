@@ -404,12 +404,18 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
 
     /// @dev Roll the epoch clock, update the variance + fee EWMAs, and re-price the bedrock coupon.
     function _rollEpoch(uint256 A, uint256 feesValue, uint256 dt) internal {
+        // Annualize over AT LEAST a full epoch. A no-time-gate emergencySettle can run with a tiny dt, and
+        // dividing realized variance / fee yield by a few seconds explodes the EWMAs (sigma²≈1e23), pinning
+        // the coupon to rMin for dozens of epochs (review H-1). Normal settles have dt >= epochDuration, so
+        // they are unaffected; a short emergency just annualizes its burst over one epoch (conservative).
+        uint256 dtAnnual = dt < epochDuration ? epochDuration : dt;
+
         uint256 varDelta = varAcc - varAccAtEpochStart;
-        uint256 sigma2 = dt == 0 ? 0 : VarianceLib.annualizedVariance(varDelta, dt);
+        uint256 sigma2 = dtAnnual == 0 ? 0 : VarianceLib.annualizedVariance(varDelta, dtAnnual);
         sigma2Ewma = VarianceLib.ewma(sigma2Ewma, sigma2, lambdaSmoothing);
 
-        // Annualized fee yield (WAD) = (feesValue / A) · (year / dt), relative to pool value.
-        uint256 feeYield = (A == 0 || dt == 0) ? 0 : Math.mulDiv(feesValue, WAD * SECONDS_PER_YEAR, A * dt);
+        // Annualized fee yield (WAD) = (feesValue / A) · (year / dtAnnual), relative to pool value.
+        uint256 feeYield = (A == 0 || dtAnnual == 0) ? 0 : Math.mulDiv(feesValue, WAD * SECONDS_PER_YEAR, A * dtAnnual);
         feeYieldEwma = VarianceLib.ewma(feeYieldEwma, feeYield, lambdaSmoothing);
 
         bedrockRate = WaterfallLib.couponRate(feeYieldEwma, sigma2Ewma, lambdaRisk, rMin, rMax);
