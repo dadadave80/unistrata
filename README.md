@@ -13,7 +13,7 @@ Unistrata is a Uniswap v4 hook that splits a single pool's impermanent loss into
 
 Each epoch the structure settles through a seniority waterfall — Bedrock is paid its coupon first, Sediment takes the residual. Settlement is driven **cross-chain by a Reactive Network smart contract**: no keeper, no off-chain bot, and **no external price oracle** — the coupon is priced from realized variance the hook measures off its own tick path.
 
-**The money shot (replayed on-chain, `sim/out/crash.json`):** tWETH falls $2,891 → $1,674 (−42%) and recovers to $2,025. Vanilla LP bleeds below HODL to impermanent loss; **Bedrock's NAV/share holds flat — principal fully protected through the drawdown**; Sediment absorbs the loss first, then keeps the fees on the recovery.
+**The money shot (replayed on-chain from the real May 2021 ETH crash, `sim/out/crash.json`):** tWETH falls $3,191 → $1,603 (−50%) and recovers to $1,889. Vanilla LP bleeds below HODL to impermanent loss; **Bedrock's NAV holds flat — principal fully protected through the drawdown**; Sediment absorbs the loss first, then keeps the fees on the recovery.
 
 ![Bedrock NAV/share holds flat while vanilla LP bleeds below HODL to impermanent loss — sim/out/crash.json](assets/money-shot.png)
 

@@ -92,8 +92,8 @@ export function Landing({ core, onSettle, onNav }: { core: Core; onSettle: () =>
       <section>
         <div className="lg__charthead">
           <div>
-            <div className="lg__chartttl">Bedrock holds its line through a 42% crash</div>
-            <div className="lg__chartsub">Replayed on-chain (sim/out): tWETH falls $2,891 → $1,674 and recovers to $2,025. Vanilla LP bleeds below HODL to impermanent loss; Bedrock per-share holds flat on its coupon line; Sediment absorbs the drawdown, then keeps the fees on the recovery.</div>
+            <div className="lg__chartttl">Bedrock holds its line through a 50% crash</div>
+            <div className="lg__chartsub">Replayed on-chain from the real May 2021 ETH crash (sim/out): tWETH falls $3,191 → $1,603 (−50%) and recovers to $1,889. Vanilla LP bleeds below HODL to impermanent loss; Bedrock&apos;s NAV holds flat — principal protected; Sediment absorbs the drawdown, then keeps the fees on the recovery.</div>
           </div>
           <Button variant="secondary" onClick={() => onNav('simulator')}>Open the simulator</Button>
         </div>
