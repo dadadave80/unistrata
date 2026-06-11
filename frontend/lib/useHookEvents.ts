@@ -20,31 +20,34 @@ function short(hash: string): string {
 }
 
 // Map a decoded hook log → the feed's display shape. Returns null for events we don't surface.
+const EXPLORER_TX = 'https://sepolia.uniscan.xyz/tx/';
+
 function toFeedEvent(log: { eventName?: string; args?: Record<string, unknown>; blockNumber?: bigint; transactionHash?: string }): FeedEvent | null {
   const a = (log.args ?? {}) as Record<string, unknown>;
   const tx = log.transactionHash ? short(log.transactionHash) : '—';
+  const txUrl = log.transactionHash ? EXPLORER_TX + log.transactionHash : undefined;
   const time = log.blockNumber !== undefined ? `blk ${log.blockNumber}` : 'recent';
   const num = (v: unknown) => (typeof v === 'bigint' ? Number(v) : Number(v ?? 0));
   const usd = (v: unknown) => '$' + Math.round(num(formatUnits((v as bigint) ?? 0n, 18))).toLocaleString();
 
   switch (log.eventName) {
     case 'EmergencySettled':
-      return { time, kind: 'emergency', epoch: num(a.epochId), chain: 'Reactive ⇄ Unichain', tx,
+      return { time, kind: 'emergency', epoch: num(a.epochId), chain: 'Reactive ⇄ Unichain', tx, txUrl,
         message: `Vol circuit breaker → <span class="em">emergencySettle()</span> closed epoch ${num(a.epochId)} early (EmergencySettled)` };
     case 'EpochSettled':
-      return { time, kind: 'settle', epoch: num(a.epochId), chain: 'Unichain Sepolia', tx,
+      return { time, kind: 'settle', epoch: num(a.epochId), chain: 'Unichain Sepolia', tx, txUrl,
         message: `Epoch ${num(a.epochId)} settled — Bedrock ${usd(a.bedrockNav)} · Sediment ${usd(a.sedimentNav)} (<span class="fn">EpochSettled</span>)` };
     case 'UnistrataObservation':
-      return { time, kind: 'info', epoch: 0, chain: 'Unichain Sepolia', tx,
+      return { time, kind: 'info', epoch: 0, chain: 'Unichain Sepolia', tx, txUrl,
         message: `New-block observation → varAcc <span class="em">${num(a.varAcc).toLocaleString()}</span> (UnistrataObservation)` };
     case 'Deposit':
-      return { time, kind: 'settle', epoch: 0, chain: 'Unichain Sepolia', tx,
+      return { time, kind: 'settle', epoch: 0, chain: 'Unichain Sepolia', tx, txUrl,
         message: `Deposit → ${a.isBedrock ? 'Bedrock' : 'Sediment'} ${usd(a.value)} (<span class="fn">${num(a.shares ? formatUnits(a.shares as bigint, 18) : 0).toFixed(0)} shares</span>)` };
     case 'WithdrawRequested':
-      return { time, kind: 'info', epoch: num(a.eligibleEpoch), chain: 'Unichain Sepolia', tx,
+      return { time, kind: 'info', epoch: num(a.eligibleEpoch), chain: 'Unichain Sepolia', tx, txUrl,
         message: `Withdraw queued from ${a.isBedrock ? 'Bedrock' : 'Sediment'} → eligible epoch ${num(a.eligibleEpoch)} (WithdrawRequested)` };
     case 'WithdrawClaimed':
-      return { time, kind: 'settle', epoch: 0, chain: 'Unichain Sepolia', tx,
+      return { time, kind: 'settle', epoch: 0, chain: 'Unichain Sepolia', tx, txUrl,
         message: `Withdrawal claimed → ${usd(a.value)} paid out (<span class="fn">WithdrawClaimed</span>)` };
     default:
       return null;

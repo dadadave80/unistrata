@@ -47,6 +47,8 @@ type FeedEvent = {
   message: string;
   /** Truncated tx hash, e.g. "0x7a3f…e201". */
   tx?: string;
+  /** Full explorer URL for this tx (e.g. https://sepolia.uniscan.xyz/tx/0x…). */
+  txUrl?: string;
   /** Chain / network label. */
   chain?: string;
   /** Related epoch number. */
@@ -86,7 +88,7 @@ export function EventFeed({
                 <div className="st-feed__sub">
                   {e.chain && <span className="st-feed__chain">{e.chain}</span>}
                   {e.epoch != null && <span className="st-feed__chain">epoch {e.epoch}</span>}
-                  {e.tx && <a className="st-feed__tx" href={explorerBase} onClick={(ev: React.MouseEvent<HTMLAnchorElement>) => ev.preventDefault()}>{e.tx} ↗</a>}
+                  {e.tx && <a className="st-feed__tx" href={e.txUrl || explorerBase} target="_blank" rel="noreferrer">{e.tx} ↗</a>}
                 </div>
               )}
             </div>
