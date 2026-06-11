@@ -1,4 +1,4 @@
-// Live Unistrata deployment on Unichain Sepolia (1301) — see REACTIVE.md. (EIP-2612 redeploy, Jun 2026.)
+// Live Unistrata deployment on Unichain Sepolia (1301). (EIP-2612 redeploy, Jun 2026.)
 export const HOOK_ADDRESS = '0x1c92498828ef724e488877cb8df251a406611840' as const;
 export const RSC_ADDRESS = '0xac81c63d936b6a751ecdd412c7c956dc70f9313e' as const; // UnistrataReactive on Reactive Lasna (5318007)
 export const TOKEN_WETH = '0x7a498c34a8dc3b6502889c21218da0f8696b7bb6' as const; // tWETH, 18 dec
