@@ -6,6 +6,7 @@ import {IERC20} from "forge-std/interfaces/IERC20.sol";
 
 import {UnistrataHook} from "../../src/UnistrataHook.sol";
 import {BaseScript} from "../base/BaseScript.sol";
+import {DemoERC20} from "./DemoERC20.sol";
 
 /// @notice Demo step A — deposit into BOTH tranches of the live UnistrataHook so the pool has liquidity
 ///         and the depositor holds Bedrock + Sediment shares (the setup for the spike demo, 05_SpikeSwaps).
@@ -21,13 +22,17 @@ contract DepositDemoScript is BaseScript {
         address usdc = vm.envAddress("TOKEN_USDC");
         UnistrataHook hook = UnistrataHook(payable(hookAddr));
 
-        // Generous maxes (≈ balanced at 1 tWETH = 3000 tUSDC); the hook pulls what full-range liquidity needs.
-        uint256 wethMax = 2e18; // tWETH (18 dec)
-        uint256 usdcMax = 6000e6; // tUSDC (6 dec)
+        // Maxes balanced at 1 tWETH = 3000 tUSDC, ~$630k of value each → deposited into BOTH tranches
+        // gives ~$2.5M TVL. The hook pulls the balanced full-range amount via the depositor's approval.
+        uint256 wethMax = 210e18; // tWETH (18 dec) ≈ $630k
+        uint256 usdcMax = 630_000e6; // tUSDC (6 dec) ≈ $630k
         // v4 sorts by address → map the maxes to (amount0Max, amount1Max).
         (uint256 amount0Max, uint256 amount1Max) = weth < usdc ? (wethMax, usdcMax) : (usdcMax, wethMax);
 
         vm.startBroadcast();
+        // DemoERC20.mint is permissionless — mint enough for both deposits (each pulls up to the maxes) + margin.
+        DemoERC20(weth).mint(deployerAddress, wethMax * 3);
+        DemoERC20(usdc).mint(deployerAddress, usdcMax * 3);
         IERC20(weth).approve(hookAddr, type(uint256).max);
         IERC20(usdc).approve(hookAddr, type(uint256).max);
         uint256 sed = hook.deposit(false, amount0Max, amount1Max); // Sediment (junior) first

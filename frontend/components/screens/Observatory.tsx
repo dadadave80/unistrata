@@ -87,7 +87,7 @@ export function Observatory({ core, onSettle }: { core: { sweepKey: number }; on
           </Panel>
 
           <Panel eyebrow="Epoch clock" title="Next settlement">
-            <EpochCountdown epoch={live.epoch} secondsLeft={11529} epochLength={live.epochLengthH * 3600} running onSettle={onSettle} />
+            <EpochCountdown epoch={live.epoch} secondsLeft={live.secondsToSettle} epochLength={live.epochDuration} running onSettle={onSettle} />
           </Panel>
         </div>
       </div>
