@@ -61,8 +61,6 @@ const CSS = `
 }
 `;
 
-function useCSS(id: string, css: string) { React.useEffect(()=>{ if(document.getElementById(id))return; const e=document.createElement('style'); e.id=id; e.textContent=css; document.head.appendChild(e);},[id,css]); }
-
 function fmtUsd(n: number) {
   if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
   if (n >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
@@ -97,7 +95,6 @@ export function StrataCore({
   showScale = true,
   className = '', style, ...rest
 }: StrataCoreProps) {
-  useCSS('st-core-css', CSS);
   const ref = scaleMax || (seniorNav + juniorNav) * 1.18; // headroom above for overburden
   const pad = glyph ? 0 : 14;
   const usable = height - pad * 2;
@@ -112,6 +109,7 @@ export function StrataCore({
     const gs = (seniorNav / ref) * g, gj = (juniorNav / ref) * g, gv = g - gs - gj;
     return (
       <span className={`st-core ${className}`} style={{ width: height * 0.92, height: g, borderRadius: 5, display: 'inline-block', ...style }} {...rest}>
+        <style dangerouslySetInnerHTML={{ __html: CSS }} />
         <span className="st-core__stack">
           <span className="st-core__void" style={{ height: gv }} />
           <span className="st-core__layer st-core__layer--junior" style={{ bottom: gs, height: gj }}><span className="st-core__edge st-core__edge--junior" /></span>
@@ -128,6 +126,7 @@ export function StrataCore({
 
   return (
     <div className={`st-core ${className}`} style={{ height, ...style }} {...rest}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="st-core__stack" style={{ left: pad, right: (showScale ? 46 : pad), top: pad, bottom: pad }}>
         {/* overburden / impairment void */}
         <div className="st-core__void" style={{ height: voidH }}>

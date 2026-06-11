@@ -31,11 +31,6 @@ const obsCSS = `
 `;
 
 export function Observatory({ core, onSettle }: { core: { sweepKey: number }; onSettle: () => void }) {
-  React.useEffect(() => {
-    if (document.getElementById('ob-css')) return;
-    const e = document.createElement('style'); e.id = 'ob-css'; e.textContent = obsCSS; document.head.appendChild(e);
-  }, []);
-
   const live = useHookState(); // live UnistrataHook state (30s refetch) with snapshot fallback
   const liveFeed = useHookEvents(); // live on-chain event log (20s rescan) with verified-trail fallback
   const sNav = live.bedrockNav;
@@ -49,6 +44,7 @@ export function Observatory({ core, onSettle }: { core: { sweepKey: number }; on
 
   return (
     <div>
+      <style dangerouslySetInnerHTML={{ __html: obsCSS }} />
       <div className="ob__head">
         <div>
           <div className="ob__title">Observatory</div>

@@ -62,10 +62,6 @@ type Props = {
 };
 
 export function AppShell({ screen, onNav, seniorNav, juniorNav, scaleMax, sweepKey, children }: Props) {
-  React.useEffect(() => {
-    if (document.getElementById('sx-css')) return;
-    const e = document.createElement('style'); e.id = 'sx-css'; e.textContent = shellCSS; document.head.appendChild(e);
-  }, []);
   const { open } = useAppKit();
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
@@ -73,6 +69,7 @@ export function AppShell({ screen, onNav, seniorNav, juniorNav, scaleMax, sweepK
 
   return (
     <div className="sx">
+      <style dangerouslySetInnerHTML={{ __html: shellCSS }} />
       <aside className="sx__rail">
         <div className="sx__brand">
           <Image src="/strata-mark.svg" width={30} height={30} alt="Unistrata" />

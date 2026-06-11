@@ -62,11 +62,6 @@ const depositCSS = `
 `;
 
 export function Deposit() {
-  React.useEffect(() => {
-    if (document.getElementById('dp-css')) return;
-    const e = document.createElement('style'); e.id = 'dp-css'; e.textContent = depositCSS; document.head.appendChild(e);
-  }, []);
-
   const { open } = useAppKit();
   const { address, isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
@@ -179,6 +174,7 @@ export function Deposit() {
 
   return (
     <div>
+      <style dangerouslySetInnerHTML={{ __html: depositCSS }} />
       <div className="dp__head">
         <div className="dp__title">Choose your layer</div>
         <p className="dp__sub">The same instrument, two temperaments. Bedrock is the senior layer — fixed coupon, protected first. Sediment is the junior layer — levered yield in exchange for absorbing loss first.</p>

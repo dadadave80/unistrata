@@ -18,16 +18,6 @@ const CSS = `
 .st-chart__leg b { font-weight: 500; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 `;
 
-function useCSS(id: string, css: string) {
-  React.useEffect(() => {
-    if (document.getElementById(id)) return;
-    const e = document.createElement('style');
-    e.id = id;
-    e.textContent = css;
-    document.head.appendChild(e);
-  }, [id, css]);
-}
-
 type RoleKey = 'hodl' | 'lp' | 'junior' | 'senior';
 
 interface Role {
@@ -75,7 +65,6 @@ export function MoneyChart({
   series, price, progress = 1, height = 320, showLegend = true,
   showPrice = true, className = '', ...rest
 }: MoneyChartProps) {
-  useCSS('st-chart-css', CSS);
   const W = 1000, H = 1000 * (height / ((rest as { aspect?: number }).aspect || 600)) || 600;
   const VH = 600;
   const keys = ROLES.filter(r => series && series[r.key]);
@@ -109,6 +98,7 @@ export function MoneyChart({
 
   return (
     <div className={`st-chart ${className}`} {...rest}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <svg viewBox={`0 0 ${W} ${VH}`} style={{ height }} preserveAspectRatio="none">
         <defs>
           <clipPath id={clipId}><rect x="0" y="0" width={headX} height={VH} /></clipPath>

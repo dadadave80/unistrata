@@ -56,11 +56,6 @@ const wdCSS = `
 const ZERO = '0x0000000000000000000000000000000000000000';
 
 export function Withdraw() {
-  React.useEffect(() => {
-    if (document.getElementById('wd-css')) return;
-    const e = document.createElement('style'); e.id = 'wd-css'; e.textContent = wdCSS; document.head.appendChild(e);
-  }, []);
-
   const { open } = useAppKit();
   const { address, isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
@@ -144,6 +139,7 @@ export function Withdraw() {
 
   return (
     <div>
+      <style dangerouslySetInnerHTML={{ __html: wdCSS }} />
       <div className="wd__head">
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 'var(--space-6)' }}>
           <div>

@@ -13,8 +13,6 @@ const CSS = `
 .st-gauge__arc { transition: stroke-dashoffset var(--dur-slow) var(--ease-out); }
 `;
 
-function useCSS(id: string, css: string) { React.useEffect(()=>{ if(document.getElementById(id))return; const e=document.createElement('style'); e.id=id; e.textContent=css; document.head.appendChild(e);},[id,css]); }
-
 export interface GaugeThreshold { at: number; color?: string; }
 
 type GaugeProps = {
@@ -35,7 +33,6 @@ export function Gauge({
   value = 0, max = 1, min = 0, size = 180, label, unit, valueText,
   sweepDeg = 250, tone = 'senior', thresholds, className = '', ...rest
 }: GaugeProps) {
-  useCSS('st-gauge-css', CSS);
   const r = size / 2 - 14;
   const cx = size / 2, cy = size / 2;
   const startAngle = 90 + (360 - sweepDeg) / 2; // centered at bottom gap
@@ -60,6 +57,7 @@ export function Gauge({
 
   return (
     <div className={`st-gauge ${className}`} style={{ width: size }} {...rest}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: `rotate(${rot - 90}deg)` }}>
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--ink-700)" strokeWidth="9"
           strokeDasharray={dashArray} strokeLinecap="round" />

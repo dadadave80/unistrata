@@ -20,8 +20,6 @@ const CSS = `
   font-size: 9.5px; color: var(--text-tertiary); }
 `;
 
-function useCSS(id: string, css: string) { React.useEffect(()=>{ if(document.getElementById(id))return; const e=document.createElement('style'); e.id=id; e.textContent=css; document.head.appendChild(e);},[id,css]); }
-
 function hms(total: number) {
   const t = Math.max(0, Math.floor(total));
   const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
@@ -46,7 +44,6 @@ export function EpochCountdown({
   epoch = 47, secondsLeft = 11529, epochLength = 28800,
   running = true, onSettle, className = '', ...rest
 }: EpochCountdownProps) {
-  useCSS('st-epoch-css', CSS);
   const [left, setLeft] = React.useState(secondsLeft);
   React.useEffect(() => setLeft(secondsLeft), [secondsLeft]);
   React.useEffect(() => {
@@ -65,6 +62,7 @@ export function EpochCountdown({
 
   return (
     <div className={`st-epoch ${className}`} {...rest}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="st-epoch__head">
         <span className="st-epoch__label">Next settlement</span>
         <span className="st-epoch__no">epoch {epoch} → {epoch + 1}</span>

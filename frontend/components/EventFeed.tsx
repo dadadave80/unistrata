@@ -36,8 +36,6 @@ const CSS = `
 @media (prefers-reduced-motion: reduce) { .st-feed__dot { animation: none; } }
 `;
 
-function useCSS(id: string, css: string) { React.useEffect(()=>{ if(document.getElementById(id))return; const e=document.createElement('style'); e.id=id; e.textContent=css; document.head.appendChild(e);},[id,css]); }
-
 const MARK = { settle: 'settle', reactive: 'reactive', emergency: 'emergency', info: 'info' } as const;
 
 type FeedEvent = {
@@ -70,9 +68,9 @@ export function EventFeed({
   events = [], title = 'Reactive Network · automation feed', maxHeight,
   explorerBase = '#', className = '', ...rest
 }: EventFeedProps) {
-  useCSS('st-feed-css', CSS);
   return (
     <div className={`st-feed ${className}`} style={maxHeight ? ({ ['--st-feed-h']: maxHeight + 'px' } as React.CSSProperties) : undefined} {...rest}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="st-feed__bar">
         <span className="st-feed__title"><span className="st-feed__dot" />{title}</span>
         <span className="st-feed__meta">no keepers · no bots</span>

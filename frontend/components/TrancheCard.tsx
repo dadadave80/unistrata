@@ -47,8 +47,6 @@ const CSS = `
 .st-tranche__foot { font-family: var(--font-sans); font-size: 12.5px; color: var(--text-tertiary); line-height: 1.45; }
 `;
 
-function useCSS(id: string, css: string) { React.useEffect(()=>{ if(document.getElementById(id))return; const e=document.createElement('style'); e.id=id; e.textContent=css; document.head.appendChild(e);},[id,css]); }
-
 type TrancheRow = { label: React.ReactNode; value: React.ReactNode; tone?: 'senior' | 'junior' };
 
 type TrancheCardProps = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'role'> & {
@@ -80,7 +78,6 @@ export function TrancheCard({
   tranche = 'senior', apr, aprLabel, name, role, rows = [], capacityPct,
   capacityLabel, footnote, selected = false, onSelect, className = '', children, ...rest
 }: TrancheCardProps) {
-  useCSS('st-tranche-css', CSS);
   const defaults = tranche === 'senior'
     ? { name: 'Bedrock', role: 'Senior layer — fixed coupon, protected first', aprLabel: 'fixed this epoch' }
     : { name: 'Sediment', role: 'Junior layer — levered yield, absorbs loss first', aprLabel: 'trailing 30d' };
@@ -89,6 +86,7 @@ export function TrancheCard({
       className={`st-tranche st-tranche--${tranche} ${className}`}
       data-selected={selected ? 'true' : 'false'}
       onClick={onSelect} {...rest}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <span className="st-tranche__top" />
       <div className="st-tranche__head">
         <div>

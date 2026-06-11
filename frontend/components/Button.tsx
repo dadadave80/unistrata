@@ -40,14 +40,6 @@ const CSS = `
 .st-btn--danger { --_bg: transparent; --_fg: var(--loss-300); --_bd: var(--loss-600); }
 `;
 
-function useCSS(id: string, css: string) {
-  React.useEffect(() => {
-    if (document.getElementById(id)) return;
-    const el = document.createElement('style');
-    el.id = id; el.textContent = css; document.head.appendChild(el);
-  }, [id, css]);
-}
-
 type ButtonProps = {
   /** Visual role. @default "secondary" */
   variant?: 'primary' | 'secondary' | 'ghost' | 'senior' | 'junior' | 'danger';
@@ -73,7 +65,6 @@ export function Button({
   fullWidth = false, disabled = false, as = 'button',
   className = '', children, ...rest
 }: ButtonProps) {
-  useCSS('st-btn-css', CSS);
   const Tag = as;
   const cls = [
     'st-btn', `st-btn--${variant}`, `st-btn--${size}`,
@@ -83,6 +74,7 @@ export function Button({
   return React.createElement(
     Tag,
     { className: cls, disabled: Tag === 'button' ? disabled : undefined, ...rest },
+    <style dangerouslySetInnerHTML={{ __html: CSS }} />,
     icon ? <span className="st-btn__ic">{icon}</span> : null,
     children,
     iconRight ? <span className="st-btn__ic">{iconRight}</span> : null,

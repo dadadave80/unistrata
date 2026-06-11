@@ -28,8 +28,6 @@ const CSS = `
 @media (prefers-reduced-motion: reduce) { .st-badge__dot--live { animation: none; } }
 `;
 
-function useCSS(id: string, css: string) { React.useEffect(() => { if (document.getElementById(id)) return; const e = document.createElement('style'); e.id = id; e.textContent = css; document.head.appendChild(e); }, [id, css]); }
-
 type BadgeProps = {
   variant?: 'neutral' | 'senior' | 'junior' | 'positive' | 'negative' | 'live';
   size?: 'sm' | 'md';
@@ -40,10 +38,10 @@ type BadgeProps = {
 } & React.HTMLAttributes<HTMLSpanElement>;
 
 export function Badge({ variant = 'neutral', size = 'md', dot = false, live = false, className = '', children, ...rest }: BadgeProps) {
-  useCSS('st-badge-css', CSS);
   const cls = ['st-badge', `st-badge--${variant}`, `st-badge--${size}`, className].filter(Boolean).join(' ');
   return (
     <span className={cls} {...rest}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       {(dot || live) && <span className={`st-badge__dot${live ? ' st-badge__dot--live' : ''}`} />}
       {children}
     </span>

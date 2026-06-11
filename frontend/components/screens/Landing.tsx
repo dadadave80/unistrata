@@ -36,10 +36,6 @@ const landingCSS = `
 type Core = { seniorNav: number; juniorNav: number; sweepKey: number };
 
 export function Landing({ core, onSettle, onNav }: { core: Core; onSettle: () => void; onNav: (s: string) => void }) {
-  React.useEffect(() => {
-    if (document.getElementById('lg-css')) return;
-    const e = document.createElement('style'); e.id = 'lg-css'; e.textContent = landingCSS; document.head.appendChild(e);
-  }, []);
   const crash = SCENARIOS.crash;
   const live = useHookState(); // real hook state (30s refetch) with the verified-snapshot fallback
   // The hero "live core" scales to the live capital structure (falls back to the sim scale when empty),
@@ -48,6 +44,7 @@ export function Landing({ core, onSettle, onNav }: { core: Core; onSettle: () =>
 
   return (
     <div>
+      <style dangerouslySetInnerHTML={{ __html: landingCSS }} />
       <section className="lg__hero">
         <div>
           <div className="lg__eyebrow">

@@ -27,8 +27,6 @@ const CSS = `
 .st-panel--accent-junior { box-shadow: var(--elev-2), inset 2px 0 0 0 var(--junior-600); }
 `;
 
-function useCSS(id: string, css: string) { React.useEffect(()=>{ if(document.getElementById(id))return; const e=document.createElement('style'); e.id=id; e.textContent=css; document.head.appendChild(e);},[id,css]); }
-
 type PanelProps = React.HTMLAttributes<HTMLElement> & {
   eyebrow?: React.ReactNode;
   title?: React.ReactNode;
@@ -44,7 +42,6 @@ export function Panel({
   eyebrow, title, actions, accent, variant = 'default',
   padded = true, className = '', headless, children, ...rest
 }: PanelProps) {
-  useCSS('st-panel-css', CSS);
   const hasHead = !headless && (eyebrow || title || actions);
   const cls = [
     'st-panel',
@@ -55,6 +52,7 @@ export function Panel({
   ].filter(Boolean).join(' ');
   return (
     <section className={cls} {...rest}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       {hasHead && (
         <header className="st-panel__head">
           <div className="st-panel__titles">

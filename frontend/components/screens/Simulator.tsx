@@ -44,10 +44,6 @@ const SCN: { id: ScenarioId; label: string }[] = [
 ];
 
 export function Simulator() {
-  React.useEffect(() => {
-    if (document.getElementById('sm-css')) return;
-    const e = document.createElement('style'); e.id = 'sm-css'; e.textContent = simCSS; document.head.appendChild(e);
-  }, []);
   const [scn, setScn] = React.useState<ScenarioId>('crash');
   const data = SCENARIOS[scn];
   const N = data.price.length; // real sim/out scenarios are per-epoch (variable length)
@@ -63,6 +59,7 @@ export function Simulator() {
 
   return (
     <div>
+      <style dangerouslySetInnerHTML={{ __html: simCSS }} />
       <div className="sm__head">
         <div>
           <div className="sm__title">Simulator</div>

@@ -30,8 +30,6 @@ const CSS = `
 .st-stat__delta--flat { color: var(--text-tertiary); }
 `;
 
-function useCSS(id: string, css: string) { React.useEffect(()=>{ if(document.getElementById(id))return; const e=document.createElement('style'); e.id=id; e.textContent=css; document.head.appendChild(e);},[id,css]); }
-
 type StatProps = React.HTMLAttributes<HTMLDivElement> & {
   label?: React.ReactNode;
   value: React.ReactNode;
@@ -47,11 +45,11 @@ export function Stat({
   label, value, unit, delta, deltaDir = 'flat',
   tone = 'default', size = 'md', className = '', children, ...rest
 }: StatProps) {
-  useCSS('st-stat-css', CSS);
   const cls = ['st-stat', `st-stat--${size}`, tone !== 'default' ? `st-stat--${tone}` : '', className].filter(Boolean).join(' ');
   const arrow = deltaDir === 'up' ? '▲' : deltaDir === 'down' ? '▼' : '—';
   return (
     <div className={cls} {...rest}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       {label && <span className="st-stat__label">{label}</span>}
       <span className="st-stat__value">{value}{unit && <span className="st-stat__unit">{unit}</span>}</span>
       {delta != null && (
