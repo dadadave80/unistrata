@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { parseUnits, formatUnits } from 'viem';
-import { useAccount, useReadContracts, useWriteContract } from 'wagmi';
+import { useAccount, useReadContracts, useWriteContract, useSignTypedData, usePublicClient, useChainId, useSwitchChain } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
 import { Button } from '@/components/Button';
 import { Badge } from '@/components/Badge';
@@ -12,6 +12,7 @@ import { ShieldCheck, Flame, LogOut, Clock, Check } from 'lucide-react';
 import {
   HOOK_ADDRESS, BEDROCK_TOKEN, SEDIMENT_TOKEN, erc20Abi, hookAbi, CHAIN_ID, txUrl,
 } from '@/lib/contracts';
+import { buildErc20Permit, splitSig, permitDeadline } from '@/lib/eip2612';
 import { useWithdrawRequests } from '@/lib/useWithdrawRequests';
 import { shortAddr } from '@/lib/format';
 
@@ -59,22 +60,24 @@ export function Withdraw() {
   const { open } = useAppKit();
   const { address, isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const { signTypedDataAsync } = useSignTypedData();
+  const client = usePublicClient({ chainId: CHAIN_ID });
+  const walletChainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
 
   const [tranche, setTranche] = React.useState<'senior' | 'junior'>('junior');
   const [shares, setShares] = React.useState(0);
-  const [busy, setBusy] = React.useState<false | 'approve' | 'request' | 'claim'>(false);
+  const [busy, setBusy] = React.useState<false | 'sign' | 'request' | 'claim'>(false);
   const [tx, setTx] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
 
   const isSenior = tranche === 'senior';
 
-  // share balances + the hook's allowance for each share token + current epoch
+  // share balances + current epoch. EIP-2612 needs no standing allowance, so none is read.
   const { data: reads, refetch: refetchReads } = useReadContracts({
     contracts: [
       { address: BEDROCK_TOKEN, abi: erc20Abi, functionName: 'balanceOf', args: [address ?? ZERO], chainId: CHAIN_ID },
       { address: SEDIMENT_TOKEN, abi: erc20Abi, functionName: 'balanceOf', args: [address ?? ZERO], chainId: CHAIN_ID },
-      { address: BEDROCK_TOKEN, abi: erc20Abi, functionName: 'allowance', args: [address ?? ZERO, HOOK_ADDRESS], chainId: CHAIN_ID },
-      { address: SEDIMENT_TOKEN, abi: erc20Abi, functionName: 'allowance', args: [address ?? ZERO, HOOK_ADDRESS], chainId: CHAIN_ID },
       { address: HOOK_ADDRESS, abi: hookAbi, functionName: 'epochId', chainId: CHAIN_ID },
     ],
     query: { enabled: isConnected, refetchInterval: 30_000 },
@@ -82,12 +85,9 @@ export function Withdraw() {
   const ok = (i: number) => reads && reads[i].status === 'success';
   const beBal = ok(0) ? Number(formatUnits(reads![0].result as bigint, 18)) : 0;
   const seBal = ok(1) ? Number(formatUnits(reads![1].result as bigint, 18)) : 0;
-  const allowBe = ok(2) ? (reads![2].result as bigint) : 0n;
-  const allowSe = ok(3) ? (reads![3].result as bigint) : 0n;
-  const epoch = ok(4) ? Number(reads![4].result as bigint) : 0;
+  const epoch = ok(2) ? Number(reads![2].result as bigint) : 0;
 
   const bal = isSenior ? beBal : seBal;
-  const allow = isSenior ? allowBe : allowSe;
   const sym = isSenior ? 'BEDR' : 'SEDI';
 
   const { requests, refetch: refetchReqs } = useWithdrawRequests(address as `0x${string}` | undefined, epoch);
@@ -98,15 +98,27 @@ export function Withdraw() {
     if (!address) { open(); return; }
     setErr(null); setTx(null);
     try {
+      // Pin the signing chain before signTypedData — the EIP-2612 domain is chain- and token-specific, so
+      // a wrong-chain signature would not verify on the hook (review #4; this screen had no guard before).
+      if (walletChainId !== CHAIN_ID) await switchChainAsync({ chainId: CHAIN_ID });
+      if (!client) throw new Error('No RPC client for the configured chain.');
       const shareAmount = parseUnits(String(shares), 18);
       const token = isSenior ? BEDROCK_TOKEN : SEDIMENT_TOKEN;
-      // Exact approval of the hook for the SHARE token (the hook escrows the shares on request).
-      if (allow < shareAmount) {
-        setBusy('approve');
-        await writeContractAsync({ address: token, abi: erc20Abi, functionName: 'approve', args: [HOOK_ADDRESS, shareAmount], chainId: CHAIN_ID });
-      }
+
+      // Sign an EIP-2612 permit on the SHARE token (spender = the hook) so the escrow needs no standing
+      // approval — request in a single tx. Read name + current nonce fresh for a matching, non-stale sig.
+      setBusy('sign');
+      const [name, nonce] = await Promise.all([
+        client.readContract({ address: token, abi: erc20Abi, functionName: 'name' }) as Promise<string>,
+        client.readContract({ address: token, abi: erc20Abi, functionName: 'nonces', args: [address] }) as Promise<bigint>,
+      ]);
+      const deadline = permitDeadline();
+      const p = buildErc20Permit({ tokenName: name, token, chainId: CHAIN_ID, owner: address, spender: HOOK_ADDRESS, value: shareAmount, nonce, deadline });
+      const signature = await signTypedDataAsync({ domain: p.domain, types: p.types, primaryType: p.primaryType, message: p.message });
+      const { v, r, s } = splitSig(signature);
+
       setBusy('request');
-      const h = await writeContractAsync({ address: HOOK_ADDRESS, abi: hookAbi, functionName: 'requestWithdraw', args: [isSenior, shareAmount], chainId: CHAIN_ID });
+      const h = await writeContractAsync({ address: HOOK_ADDRESS, abi: hookAbi, functionName: 'requestWithdrawWithPermit', args: [isSenior, shareAmount, deadline, v, r, s], chainId: CHAIN_ID });
       setTx(h);
       await refresh();
     } catch (e: unknown) {
@@ -133,7 +145,7 @@ export function Withdraw() {
   if (!isConnected) { label = 'Connect wallet to withdraw'; action = () => open(); }
   else if (!(shares > 0)) { label = 'Enter a share amount'; disabled = true; }
   else if (shares > bal + 1e-9) { label = `Only ${bal.toFixed(2)} ${sym} available`; disabled = true; }
-  else if (busy === 'approve') { label = `Approve ${sym} in wallet…`; disabled = true; }
+  else if (busy === 'sign') { label = `Sign ${sym} permit in wallet…`; disabled = true; }
   else if (busy === 'request') { label = 'Confirm request in wallet…'; disabled = true; }
   else if (busy === 'claim') { label = 'Claiming…'; disabled = true; }
   else { label = `Request ${sym} withdrawal`; }

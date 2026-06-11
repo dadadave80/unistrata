@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { parseUnits, formatUnits, maxUint256 } from 'viem';
+import { parseUnits, formatUnits } from 'viem';
 import { useAccount, useReadContracts, useWriteContract, useSignTypedData, usePublicClient, useChainId, useSwitchChain } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
 import { Button } from '@/components/Button';
@@ -11,7 +11,7 @@ import { TrancheCard } from '@/components/TrancheCard';
 import { NumberTicker } from '@/components/NumberTicker';
 import { ShieldCheck, Flame, LogOut } from 'lucide-react';
 import { HOOK_ADDRESS, TOKEN0, TOKEN1, TOKEN_WETH, TOKEN_USDC, BEDROCK_TOKEN, SEDIMENT_TOKEN, erc20Abi, hookAbi, CHAIN_ID, txUrl } from '@/lib/contracts';
-import { PERMIT2_ADDRESS, buildPermitBatch } from '@/lib/permit2';
+import { buildErc20Permit, splitSig, permitDeadline } from '@/lib/eip2612';
 import { fmtUsd, shortAddr } from '@/lib/format';
 import { usePoolPrice } from '@/lib/usePoolPrice';
 import { useHookState } from '@/lib/useHookState';
@@ -82,7 +82,7 @@ export function Deposit() {
   const [amountStr, setAmountStr] = React.useState('2000');
   const amount = Number(amountStr) || 0; // numeric form for UI math (shares estimate, chips, balance gate)
   const [depTx, setDepTx] = React.useState<string | null>(null);
-  const [depBusy, setDepBusy] = React.useState<false | 'approve' | 'sign' | 'deposit'>(false);
+  const [depBusy, setDepBusy] = React.useState<false | 'sign' | 'deposit'>(false);
   const [err, setErr] = React.useState<string | null>(null);
   const [faucetBusy, setFaucetBusy] = React.useState(false);
   const [faucetTx, setFaucetTx] = React.useState<string | null>(null);
@@ -98,21 +98,17 @@ export function Deposit() {
   const walletChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
 
-  // live balances + current Permit2 allowances of the connected wallet (allowance is to Permit2, never the hook)
+  // live token balances of the connected wallet — EIP-2612 needs no standing allowance, so none is read.
   const ZERO = '0x0000000000000000000000000000000000000000';
   const { data: bals, refetch: refetchBals } = useReadContracts({
     contracts: [
       { address: TOKEN_USDC, abi: erc20Abi, functionName: 'balanceOf', args: [address ?? ZERO], chainId: CHAIN_ID },
       { address: TOKEN_WETH, abi: erc20Abi, functionName: 'balanceOf', args: [address ?? ZERO], chainId: CHAIN_ID },
-      { address: TOKEN0, abi: erc20Abi, functionName: 'allowance', args: [address ?? ZERO, PERMIT2_ADDRESS], chainId: CHAIN_ID },
-      { address: TOKEN1, abi: erc20Abi, functionName: 'allowance', args: [address ?? ZERO, PERMIT2_ADDRESS], chainId: CHAIN_ID },
     ],
     query: { enabled: isConnected },
   });
   const usdcBal = bals && bals[0].status === 'success' ? Number(formatUnits(bals[0].result as bigint, 6)) : 0;
   const wethBal = bals && bals[1].status === 'success' ? Number(formatUnits(bals[1].result as bigint, 18)) : 0;
-  const allow0 = bals && bals[2].status === 'success' ? (bals[2].result as bigint) : 0n;
-  const allow1 = bals && bals[3].status === 'success' ? (bals[3].result as bigint) : 0n;
 
   // Tranche share supplies → live NAV/share (the hook mints minted = depositValue·supply/nav).
   const { data: supplies } = useReadContracts({
@@ -158,53 +154,44 @@ export function Deposit() {
     if (!address) { open(); return; }
     setErr(null); setDepTx(null);
     try {
-      // Ensure the wallet is on Unichain Sepolia before signing — the Permit2 EIP-712 domain is pinned to
-      // CHAIN_ID, so signing on another chain would produce a mismatched signature (review #4).
+      // Ensure the wallet is on Unichain Sepolia before signing — each EIP-2612 domain is pinned to
+      // CHAIN_ID + the token, so signing on another chain produces a signature the hook can't verify (#4).
       if (walletChainId !== CHAIN_ID) await switchChainAsync({ chainId: CHAIN_ID });
+      if (!client) throw new Error('No RPC client for the configured chain.');
       // The "Amount in" field is denominated in tUSDC; pair it with ~balanced tWETH at the LIVE pool price.
-      // Map each leg to token0/token1 BY IDENTITY (the pool sorts tokens by address) so the Permit2 batch is
-      // always ordered [currency0, currency1] — a future re-deploy that reorders tokens can't silently break it.
+      // Map each leg to token0/token1 BY IDENTITY (the pool sorts tokens by address) so the permits always
+      // line up with the on-chain currency0/currency1 — a re-deploy that reorders tokens can't break it.
       const usdcAmount = parseUnits(amountStr.replace(/\.$/, '') || '0', 6); // tUSDC, 6 dec (clean string, no Number round-trip)
       const wethAmount = parseUnits((amount / livePrice).toFixed(18), 18); // tWETH, 18 dec (live-priced)
       const amount0Max = (TOKEN0 as string) === TOKEN_USDC ? usdcAmount : wethAmount;
       const amount1Max = (TOKEN1 as string) === TOKEN_USDC ? usdcAmount : wethAmount;
+      const deadline = permitDeadline();
 
-      // One-time unlimited approval to the audited, immutable canonical Permit2 (never to the hook).
-      // After this, deposits are just a signature — no further approvals. The hook can only ever pull
-      // via a fresh, exact-amount, deadline-bounded Permit2 signature, so the standing allowance is inert
-      // without the user's explicit sign-off each time.
-      let approveHash: `0x${string}` | undefined;
-      if (allow0 < amount0Max) {
-        setDepBusy('approve');
-        approveHash = await writeContractAsync({ address: TOKEN0, abi: erc20Abi, functionName: 'approve', args: [PERMIT2_ADDRESS, maxUint256], chainId: CHAIN_ID });
-      }
-      if (allow1 < amount1Max) {
-        setDepBusy('approve');
-        approveHash = await writeContractAsync({ address: TOKEN1, abi: erc20Abi, functionName: 'approve', args: [PERMIT2_ADDRESS, maxUint256], chainId: CHAIN_ID });
-      }
-      // Wait for the approval to MINE before signing/depositing: writeContractAsync resolves on submission,
-      // and Permit2.permitTransferFrom reverts (TRANSFER_FROM_FAILED) if the ERC-20 allowance to Permit2 is
-      // not yet effective. Nonce ordering means the last approve's receipt implies any earlier one mined too.
-      if (approveHash && client) await client.waitForTransactionReceipt({ hash: approveHash });
-
-      // Sign the exact-amount batch transfer (spender = the hook). Gasless.
+      // Sign one EIP-2612 permit per leg, granting the hook a just-in-time allowance (gasless, no approve).
+      // Read each token's name + current nonce fresh so the EIP-712 domain matches and the nonce is never
+      // stale. token0/token1 are independent contracts with independent nonces.
       setDepBusy('sign');
-      const p = buildPermitBatch({ token0: TOKEN0, amount0Max, token1: TOKEN1, amount1Max, spender: HOOK_ADDRESS, chainId: CHAIN_ID });
-      const signature = await signTypedDataAsync({
-        domain: p.domain, types: p.types, primaryType: p.primaryType, message: p.message,
-      });
+      const signLeg = async (token: `0x${string}`, value: bigint) => {
+        const [name, nonce] = await Promise.all([
+          client.readContract({ address: token, abi: erc20Abi, functionName: 'name' }) as Promise<string>,
+          client.readContract({ address: token, abi: erc20Abi, functionName: 'nonces', args: [address] }) as Promise<bigint>,
+        ]);
+        const p = buildErc20Permit({ tokenName: name, token, chainId: CHAIN_ID, owner: address, spender: HOOK_ADDRESS, value, nonce, deadline });
+        const signature = await signTypedDataAsync({ domain: p.domain, types: p.types, primaryType: p.primaryType, message: p.message });
+        return splitSig(signature);
+      };
+      const sig0 = await signLeg(TOKEN0, amount0Max);
+      const sig1 = await signLeg(TOKEN1, amount1Max);
 
       // Slippage bound: revert if the live-priced mint would fall >3% below the displayed estimate
       // (guards against price drift / a sandwich between sign and execution). 0 if the estimate is unknown.
       const minSharesOut = shares > 0 ? parseUnits((shares * 0.97).toFixed(18), 18) : 0n;
 
-      // The hook pulls the maxes via Permit2, deposits, mints shares to us, and refunds the unused remainder.
+      // The hook uses each permit to grant itself an allowance, deposits, and mints shares to us.
       setDepBusy('deposit');
       const tx = await writeContractAsync({
         address: HOOK_ADDRESS, abi: hookAbi, functionName: 'depositWithPermit',
-        // viem can't infer the nested tuple[] component type (collapses `permitted` to never[]); the
-        // runtime struct shape is correct and verified by the on-chain depositWithPermit test.
-        args: [isSenior, p.permitStruct as never, signature, minSharesOut], chainId: CHAIN_ID,
+        args: [isSenior, amount0Max, amount1Max, minSharesOut, deadline, sig0, sig1], chainId: CHAIN_ID,
       });
       setDepTx(tx);
       await refetchBals();
@@ -219,8 +206,7 @@ export function Deposit() {
   let depLabel: string; let depDisabled = false; let depAction: () => void = permitAndDeposit;
   if (!isConnected) { depLabel = 'Connect wallet to deposit'; depAction = () => open(); }
   else if (!(amount > 0)) { depLabel = 'Enter an amount'; depDisabled = true; }
-  else if (depBusy === 'approve') { depLabel = 'Approve Permit2 in wallet…'; depDisabled = true; }
-  else if (depBusy === 'sign') { depLabel = 'Sign the deposit…'; depDisabled = true; }
+  else if (depBusy === 'sign') { depLabel = 'Sign 2 permits in wallet…'; depDisabled = true; }
   else if (depBusy === 'deposit') { depLabel = 'Confirm deposit in wallet…'; depDisabled = true; }
   else if (usdcBal < amount) { depLabel = `Need ${Math.ceil(amount).toLocaleString()} tUSDC — claim test tokens`; depDisabled = true; }
   else if (wethBal < wethPaired) { depLabel = `Need ${wethPaired.toFixed(3)} tWETH — claim test tokens`; depDisabled = true; }

@@ -2,9 +2,10 @@
 pragma solidity 0.8.34;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
 import {CurrencySettler} from "@openzeppelin/uniswap-hooks/src/utils/CurrencySettler.sol";
-import {ISignatureTransfer} from "permit2/src/interfaces/ISignatureTransfer.sol";
 import {AbstractCallback} from "reactive-lib/abstract-base/AbstractCallback.sol";
 import {ReentrancyGuardTransient} from "src/utils/ReentrancyGuardTransient.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
@@ -114,6 +115,13 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         bool claimed;
     }
 
+    /// @notice A flat EIP-2612 signature (v, r, s) for a single token's `permit`.
+    struct PermitSig {
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
     error UnistrataHook__OnlyHookLiquidity();
     error UnistrataHook__AlreadyInitialized();
     error UnistrataHook__NotInitialized();
@@ -124,7 +132,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     error UnistrataHook__SettlementPriceOutOfBand();
     error UnistrataHook__WithdrawNotEligible();
     error UnistrataHook__WithdrawAlreadyClaimed();
-    error UnistrataHook__BadPermit();
+    error UnistrataHook__PermitFailed();
     error UnistrataHook__InvalidRateBounds();
     error UnistrataHook__SharesOverflow();
     error UnistrataHook__InsufficientShares();
@@ -159,8 +167,6 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     uint256 internal constant DEAD_SHARES = 1000;
     address internal constant DEAD_ADDRESS = address(0xdead);
     bytes32 internal constant POSITION_SALT = bytes32(0);
-    /// @dev Canonical Permit2 (same address on every chain, incl. Unichain Sepolia).
-    ISignatureTransfer internal constant PERMIT2 = ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
     // --- tranche share tokens (one each, deployed at construction) ---
     StratumToken public immutable bedrock; // BEDR
@@ -293,72 +299,52 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         if (isBedrock) _enforceAttachmentCap();
     }
 
-    /// @notice Deposit via a Permit2 signature — no standing ERC-20 allowance to the hook. The caller
-    ///         signs a batch transfer (token0 + token1, exact amounts, deadline-bounded); the hook pulls
-    ///         the maxes to itself via Permit2, adds liquidity, mints shares, and refunds the unused
-    ///         remainder. Removes the unbounded-approval footgun.
-    /// @param isBedrock True for bedrock (BEDR), false for sediment (SEDI).
-    /// @param permit    Permit2 batch permit — permitted[0] = token0/amount0Max, permitted[1] = token1/amount1Max.
-    /// @param signature The caller's EIP-712 signature over `permit` (spender = this hook).
+    /// @notice Deposit via two EIP-2612 (ERC20Permit) signatures — one per leg — so no standing ERC-20
+    ///         allowance to the hook is needed and there is no Permit2 dependency. Each permit grants the
+    ///         hook a just-in-time allowance for that token; the deposit then reuses the plain path
+    ///         (payer == caller), which settles only the amounts actually used straight from the caller —
+    ///         no idle pull to the hook and no refund. Reverts if minted shares would be below minSharesOut.
+    /// @param isBedrock    True for bedrock (BEDR), false for sediment (SEDI).
+    /// @param amount0Max   Max token0 to pull (and the value signed in `sig0`).
+    /// @param amount1Max   Max token1 to pull (and the value signed in `sig1`).
+    /// @param minSharesOut Slippage floor; pass 0 to skip the bound.
+    /// @param deadline     Shared EIP-2612 deadline for both permits.
+    /// @param sig0         token0 permit (owner = caller, spender = this hook, value = amount0Max).
+    /// @param sig1         token1 permit (owner = caller, spender = this hook, value = amount1Max).
     function depositWithPermit(
         bool isBedrock,
-        ISignatureTransfer.PermitBatchTransferFrom calldata permit,
-        bytes calldata signature
+        uint256 amount0Max,
+        uint256 amount1Max,
+        uint256 minSharesOut,
+        uint256 deadline,
+        PermitSig calldata sig0,
+        PermitSig calldata sig1
     ) external nonReentrant returns (uint256 shares) {
-        shares = _depositWithPermit(isBedrock, permit, signature, 0);
-    }
-
-    /// @notice As {depositWithPermit}, but reverts if the minted shares would be below `minSharesOut`.
-    function depositWithPermit(
-        bool isBedrock,
-        ISignatureTransfer.PermitBatchTransferFrom calldata permit,
-        bytes calldata signature,
-        uint256 minSharesOut
-    ) external nonReentrant returns (uint256 shares) {
-        shares = _depositWithPermit(isBedrock, permit, signature, minSharesOut);
-    }
-
-    /// @dev Shared Permit2 deposit body (payer == hook via a signed pull). Reverts if shares < minSharesOut.
-    function _depositWithPermit(
-        bool isBedrock,
-        ISignatureTransfer.PermitBatchTransferFrom calldata permit,
-        bytes calldata signature,
-        uint256 minSharesOut
-    ) internal returns (uint256 shares) {
         if (!poolInitialized) revert UnistrataHook__NotInitialized();
-        if (
-            permit.permitted.length != 2 || permit.permitted[0].token != Currency.unwrap(boundKey.currency0)
-                || permit.permitted[1].token != Currency.unwrap(boundKey.currency1)
-        ) revert UnistrataHook__BadPermit();
+        // Grant the hook a just-in-time allowance on each leg, then reuse the plain deposit body. The
+        // permits move no tokens, so _deposit still prices shares off the LIVE pre-deposit value.
+        _permitSelf(Currency.unwrap(boundKey.currency0), amount0Max, deadline, sig0);
+        _permitSelf(Currency.unwrap(boundKey.currency1), amount1Max, deadline, sig1);
+        shares = _deposit(isBedrock, amount0Max, amount1Max, minSharesOut);
+    }
 
-        uint256 amount0Max = permit.permitted[0].amount;
-        uint256 amount1Max = permit.permitted[1].amount;
-
-        // Grow the senior claim to now, then price shares off the tranche's LIVE value BEFORE pulling
-        // tokens (pulling to the hook would otherwise inflate totalAssets via idle) and before liquidity.
-        _accrueCoupon();
-        uint256 navPre = _liveTrancheNav(isBedrock);
-
-        // Pull the maxes from the caller to this hook via Permit2 (signed, exact, deadline-bounded).
-        ISignatureTransfer.SignatureTransferDetails[] memory details =
-            new ISignatureTransfer.SignatureTransferDetails[](2);
-        details[0] = ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: amount0Max});
-        details[1] = ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: amount1Max});
-        PERMIT2.permitTransferFrom(permit, details, msg.sender, signature);
-
-        // Add liquidity, settling the owed amounts from THIS hook's just-pulled balance (payer == hook).
-        (uint256 depositValue, uint256 used0, uint256 used1) =
-            _runDeposit(address(this), isBedrock, amount0Max, amount1Max);
-        shares = _finalizeDeposit(isBedrock, navPre, depositValue, used0, used1, msg.sender);
-        if (shares < minSharesOut) revert UnistrataHook__InsufficientShares();
-
-        // Refund the unused remainder to the caller.
-        if (amount0Max > used0) boundKey.currency0.transfer(msg.sender, amount0Max - used0);
-        if (amount1Max > used1) boundKey.currency1.transfer(msg.sender, amount1Max - used1);
-
-        // Sync the junior residual + enforce the senior cap on the clean post-refund balance.
-        _syncSediment();
-        if (isBedrock) _enforceAttachmentCap();
+    /// @dev Grant this hook an allowance from the caller via an EIP-2612 permit, unless one is already
+    ///      sufficient. A watcher who front-runs the caller by submitting the same signed permit first
+    ///      (consuming the nonce) cannot DoS the deposit: that front-run ALSO set the allowance, so the
+    ///      gate below skips the permit entirely and the deposit proceeds. Reaching the catch therefore
+    ///      means we needed the permit and it failed (bad/expired sig) — surface a clear error now instead
+    ///      of an opaque downstream settle/transferFrom revert. NOTE: the deposit pulls only the amounts
+    ///      actually used, so signing for `value` (the max) can leave a residual allowance (value - used)
+    ///      standing to this hook. That residual is benign: the hook only ever pulls in _settleLeg during a
+    ///      deposit the caller themselves initiated (payer == msg.sender), and has no path to pull a third
+    ///      party's allowance; it is not upgradeable. A fresh permit each deposit refreshes it.
+    function _permitSelf(address token, uint256 value, uint256 deadline, PermitSig calldata sig) internal {
+        if (IERC20(token).allowance(msg.sender, address(this)) < value) {
+            try IERC20Permit(token).permit(msg.sender, address(this), value, deadline, sig.v, sig.r, sig.s) {}
+            catch {
+                if (IERC20(token).allowance(msg.sender, address(this)) < value) revert UnistrataHook__PermitFailed();
+            }
+        }
     }
 
     /// @dev Run the deposit unlock; `payer` settles the owed tokens. Returns (numéraire value, used0, used1).
@@ -399,11 +385,38 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     /// @notice Queue a withdrawal of tranche shares. Shares are escrowed and become claimable after an
     ///         epoch lockup — bedrock at the next settlement (+1 epoch), sediment one epoch later (+2,
     ///         so a sediment cannot exit just before a volatility event it is paid to absorb). Caller
-    ///         must approve this hook for the tranche token.
+    ///         must approve this hook for the tranche token (or use {requestWithdrawWithPermit}).
     /// @return id The request id, used in {claim}.
     function requestWithdraw(bool isBedrock, uint256 shares) external nonReentrant returns (uint256 id) {
-        // The request record stores shares as uint128; reject anything larger BEFORE escrowing so we can
-        // never take the full uint256 yet record a truncated (smaller) claim, stranding the excess (#21).
+        id = _requestWithdraw(isBedrock, shares);
+    }
+
+    /// @notice As {requestWithdraw}, but authorizes the escrow with an EIP-2612 signature on the tranche
+    ///         share token — no standing approval needed, queued in a single transaction.
+    /// @param deadline EIP-2612 deadline. @param v @param r @param s The share-token permit signature.
+    function requestWithdrawWithPermit(bool isBedrock, uint256 shares, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external
+        nonReentrant
+        returns (uint256 id)
+    {
+        StratumToken token = isBedrock ? bedrock : sediment;
+        // Grant the escrow allowance via signature, unless one is already sufficient. A front-run of the
+        // same permit (consuming the nonce) also sets the allowance, so the gate skips the permit and the
+        // request proceeds. Reaching the catch means the permit was needed and failed (bad/expired sig) —
+        // surface a clear error rather than an opaque escrow transferFrom revert.
+        if (token.allowance(msg.sender, address(this)) < shares) {
+            try token.permit(msg.sender, address(this), shares, deadline, v, r, s) {}
+            catch {
+                if (token.allowance(msg.sender, address(this)) < shares) revert UnistrataHook__PermitFailed();
+            }
+        }
+        id = _requestWithdraw(isBedrock, shares);
+    }
+
+    /// @dev Shared escrow + queue body. Stores shares as uint128; rejects anything larger BEFORE escrowing
+    ///      so it can never take the full uint256 yet record a truncated (smaller) claim, stranding the
+    ///      excess (#21).
+    function _requestWithdraw(bool isBedrock, uint256 shares) internal returns (uint256 id) {
         if (shares > type(uint128).max) revert UnistrataHook__SharesOverflow();
         StratumToken token = isBedrock ? bedrock : sediment;
         token.transferFrom(msg.sender, address(this), shares); // escrow

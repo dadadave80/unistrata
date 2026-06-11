@@ -1,4 +1,4 @@
-// Live Unistrata deployment on Unichain Sepolia (1301) — see REACTIVE.md. (Permit2 redeploy, Jun 2026.)
+// Live Unistrata deployment on Unichain Sepolia (1301) — see REACTIVE.md. (EIP-2612 redeploy, Jun 2026.)
 export const HOOK_ADDRESS = '0xfc4f1c6aecad1507dd0ec4af4d72f62378c25840' as const;
 export const RSC_ADDRESS = '0x3cad51414bbd94e19c47ef47fe2d65f89e467eea' as const; // UnistrataReactive on Reactive Lasna (5318007)
 export const TOKEN_WETH = '0x34b4626268da509c69e4cf03b92164b048fb9f8d' as const; // tWETH, 18 dec
@@ -45,27 +45,31 @@ export const hookAbi = [
     outputs: [{ name: 'shares', type: 'uint256' }],
   },
   {
-    // Permit2 path with a slippage bound — the hook pulls exact amounts, deposits, refunds the rest, and
-    // reverts if the minted shares would be below minSharesOut.
+    // EIP-2612 deposit: two ERC20Permit signatures (one per leg) grant the hook a just-in-time allowance,
+    // then it deposits and mints. Reverts if the minted shares would be below minSharesOut. No Permit2.
     type: 'function', name: 'depositWithPermit', stateMutability: 'nonpayable',
     inputs: [
       { name: 'isBedrock', type: 'bool' },
+      { name: 'amount0Max', type: 'uint256' },
+      { name: 'amount1Max', type: 'uint256' },
+      { name: 'minSharesOut', type: 'uint256' },
+      { name: 'deadline', type: 'uint256' },
       {
-        name: 'permit', type: 'tuple',
+        name: 'sig0', type: 'tuple',
         components: [
-          {
-            name: 'permitted', type: 'tuple[]',
-            components: [
-              { name: 'token', type: 'address' },
-              { name: 'amount', type: 'uint256' },
-            ],
-          },
-          { name: 'nonce', type: 'uint256' },
-          { name: 'deadline', type: 'uint256' },
+          { name: 'v', type: 'uint8' },
+          { name: 'r', type: 'bytes32' },
+          { name: 's', type: 'bytes32' },
         ],
       },
-      { name: 'signature', type: 'bytes' },
-      { name: 'minSharesOut', type: 'uint256' },
+      {
+        name: 'sig1', type: 'tuple',
+        components: [
+          { name: 'v', type: 'uint8' },
+          { name: 'r', type: 'bytes32' },
+          { name: 's', type: 'bytes32' },
+        ],
+      },
     ],
     outputs: [{ name: 'shares', type: 'uint256' }],
   },
@@ -73,6 +77,20 @@ export const hookAbi = [
     // Queue an epoch-locked withdrawal of tranche shares (needs the hook approved for the share token).
     type: 'function', name: 'requestWithdraw', stateMutability: 'nonpayable',
     inputs: [{ name: 'isBedrock', type: 'bool' }, { name: 'shares', type: 'uint256' }],
+    outputs: [{ name: 'id', type: 'uint256' }],
+  },
+  {
+    // As requestWithdraw, but authorizes the escrow with an EIP-2612 signature on the share token — one tx,
+    // no standing approval.
+    type: 'function', name: 'requestWithdrawWithPermit', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'isBedrock', type: 'bool' },
+      { name: 'shares', type: 'uint256' },
+      { name: 'deadline', type: 'uint256' },
+      { name: 'v', type: 'uint8' },
+      { name: 'r', type: 'bytes32' },
+      { name: 's', type: 'bytes32' },
+    ],
     outputs: [{ name: 'id', type: 'uint256' }],
   },
   {
@@ -144,6 +162,18 @@ export const erc20Abi = [
   { type: 'function', name: 'allowance', stateMutability: 'view', inputs: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'balanceOf', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'totalSupply', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { type: 'function', name: 'name', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
+  // EIP-2612 (ERC20Permit) — gasless approval via signature. nonces() is the sequential per-owner nonce
+  // signed into each permit; the EIP-712 domain name is the token's name() with version "1".
+  { type: 'function', name: 'nonces', stateMutability: 'view', inputs: [{ name: 'owner', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  {
+    type: 'function', name: 'permit', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }, { name: 'value', type: 'uint256' },
+      { name: 'deadline', type: 'uint256' }, { name: 'v', type: 'uint8' }, { name: 'r', type: 'bytes32' }, { name: 's', type: 'bytes32' },
+    ],
+    outputs: [],
+  },
   // DemoERC20 — mint is intentionally permissionless (testnet faucet).
   { type: 'function', name: 'mint', stateMutability: 'nonpayable', inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
 ] as const;

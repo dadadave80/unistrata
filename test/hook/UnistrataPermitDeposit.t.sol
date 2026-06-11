@@ -1,31 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {Constants} from "v4-core/test/utils/Constants.sol";
-import {ISignatureTransfer} from "permit2/src/interfaces/ISignatureTransfer.sol";
-import {IEIP712} from "permit2/src/interfaces/IEIP712.sol";
-import {DeployPermit2} from "permit2/test/utils/DeployPermit2.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
 import {BaseTest} from "../utils/BaseTest.sol";
 import {UnistrataHook} from "src/UnistrataHook.sol";
 import {StratumToken} from "src/StratumToken.sol";
+import {DemoERC20} from "../../script/unistrata/DemoERC20.sol";
 
-/// @notice Phase-4 hardening: deposit via a Permit2 signature (no standing ERC-20 allowance to the hook).
+/// @notice Phase-4 hardening, EIP-2612 edition: deposit via two ERC20Permit signatures (one per
+///         underlying leg) — no standing ERC-20 allowance to the hook and no Permit2 dependency.
 contract UnistrataPermitDepositTest is BaseTest {
     using PoolIdLibrary for PoolKey;
 
-    address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-    bytes32 internal constant TOKEN_PERMISSIONS_TYPEHASH = keccak256("TokenPermissions(address token,uint256 amount)");
-    bytes32 internal constant PERMIT_BATCH_TYPEHASH = keccak256(
-        "PermitBatchTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline)TokenPermissions(address token,uint256 amount)"
-    );
+    bytes32 internal constant PERMIT_TYPEHASH =
+        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
 
+    DemoERC20 internal token0;
+    DemoERC20 internal token1;
     Currency internal currency0;
     Currency internal currency1;
     PoolKey internal poolKey;
@@ -56,11 +54,13 @@ contract UnistrataPermitDepositTest is BaseTest {
 
     function setUp() public {
         deployArtifactsAndLabel();
-        (currency0, currency1) = deployCurrencyPair();
-        // Permit2 pins solc =0.8.17 (can't recompile here) → etch the precompiled runtime bytecode
-        // at the canonical address. It is built for chainid 0x7a69 (31337), so DOMAIN_SEPARATOR()
-        // matches what both this test's signer and the hook will use.
-        new DeployPermit2().deployPermit2();
+
+        // EIP-2612-capable underlying tokens (the demo tWETH/tUSDC), sorted so currency0 < currency1.
+        DemoERC20 a = new DemoERC20("Demo Wrapped Ether", "tWETH", 18);
+        DemoERC20 b = new DemoERC20("Demo USD Coin", "tUSDC", 18);
+        (token0, token1) = address(a) < address(b) ? (a, b) : (b, a);
+        currency0 = Currency.wrap(address(token0));
+        currency1 = Currency.wrap(address(token1));
 
         deployCodeTo("UnistrataHook.sol:UnistrataHook", abi.encode(poolManager, _cfg(), address(0xCA11)), HOOK_FLAGS);
         hook = UnistrataHook(payable(HOOK_FLAGS));
@@ -68,96 +68,113 @@ contract UnistrataPermitDepositTest is BaseTest {
         poolManager.initialize(poolKey, Constants.SQRT_PRICE_1_1);
 
         (user, userPk) = makeAddrAndKey("permitUser");
-        MockERC20(Currency.unwrap(currency0)).mint(user, 1_000_000e18);
-        MockERC20(Currency.unwrap(currency1)).mint(user, 1_000_000e18);
-        // The ONLY standing approval is to the audited Permit2 — not the hook.
-        vm.startPrank(user);
-        MockERC20(Currency.unwrap(currency0)).approve(PERMIT2, type(uint256).max);
-        MockERC20(Currency.unwrap(currency1)).approve(PERMIT2, type(uint256).max);
-        vm.stopPrank();
+        token0.mint(user, 1_000_000e18);
+        token1.mint(user, 1_000_000e18);
+        // NOTE: no approvals — EIP-2612 grants the hook's allowance via signature at deposit time.
     }
 
-    function _permit(uint256 a0, uint256 a1, uint256 nonce)
+    /// @dev Sign an EIP-2612 permit for `token` granting `spender` (the hook) `value`, using the owner's
+    ///      current on-chain nonce.
+    function _sign(DemoERC20 token, address spender, uint256 value, uint256 deadline)
         internal
         view
-        returns (ISignatureTransfer.PermitBatchTransferFrom memory p)
+        returns (UnistrataHook.PermitSig memory sig)
     {
-        p.permitted = new ISignatureTransfer.TokenPermissions[](2);
-        p.permitted[0] = ISignatureTransfer.TokenPermissions({token: Currency.unwrap(currency0), amount: a0});
-        p.permitted[1] = ISignatureTransfer.TokenPermissions({token: Currency.unwrap(currency1), amount: a1});
-        p.nonce = nonce;
-        p.deadline = block.timestamp + 1 hours;
+        uint256 nonce = token.nonces(user);
+        bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, user, spender, value, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", token.DOMAIN_SEPARATOR(), structHash));
+        (sig.v, sig.r, sig.s) = vm.sign(userPk, digest);
     }
 
-    /// @dev Sign the batch permit with `spender` (= the hook, which calls permitTransferFrom).
-    function _sign(ISignatureTransfer.PermitBatchTransferFrom memory p, address spender)
-        internal
-        view
-        returns (bytes memory)
-    {
-        bytes32[] memory tp = new bytes32[](p.permitted.length);
-        for (uint256 i; i < p.permitted.length; ++i) {
-            tp[i] = keccak256(abi.encode(TOKEN_PERMISSIONS_TYPEHASH, p.permitted[i]));
-        }
-        bytes32 structHash =
-            keccak256(abi.encode(PERMIT_BATCH_TYPEHASH, keccak256(abi.encodePacked(tp)), spender, p.nonce, p.deadline));
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", IEIP712(PERMIT2).DOMAIN_SEPARATOR(), structHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
-        return bytes.concat(r, s, bytes1(v));
-    }
-
-    function test_depositWithPermit_mintsShares_refundsRemainder_noHookAllowance() public {
+    function test_depositWithPermit_mintsShares_noStandingAllowance() public {
         uint256 a0 = 5000e18;
         uint256 a1 = 5000e18;
-        ISignatureTransfer.PermitBatchTransferFrom memory p = _permit(a0, a1, 0);
-        bytes memory sig = _sign(p, address(hook));
+        uint256 deadline = block.timestamp + 1 hours;
 
-        uint256 bal0Before = MockERC20(Currency.unwrap(currency0)).balanceOf(user);
-        uint256 bal1Before = MockERC20(Currency.unwrap(currency1)).balanceOf(user);
+        // Precondition: the hook has NO allowance on either leg before the call.
+        assertEq(token0.allowance(user, address(hook)), 0, "no pre-allowance t0");
+        assertEq(token1.allowance(user, address(hook)), 0, "no pre-allowance t1");
+
+        UnistrataHook.PermitSig memory sig0 = _sign(token0, address(hook), a0, deadline);
+        UnistrataHook.PermitSig memory sig1 = _sign(token1, address(hook), a1, deadline);
+
+        uint256 bal0Before = token0.balanceOf(user);
+        uint256 bal1Before = token1.balanceOf(user);
 
         vm.prank(user);
-        uint256 shares = hook.depositWithPermit(false, p, sig); // sediment (junior)
+        uint256 shares = hook.depositWithPermit(false, a0, a1, 0, deadline, sig0, sig1); // sediment (junior)
 
         StratumToken sed = hook.sediment();
         assertGt(shares, 0, "shares minted");
         assertEq(sed.balanceOf(user), shares, "shares minted to the caller");
         assertGt(hook.sedimentNav(), 0, "tranche NAV advanced");
 
-        // No unbounded allowance was ever granted to the hook.
-        assertEq(MockERC20(Currency.unwrap(currency0)).allowance(user, address(hook)), 0, "no hook allowance t0");
-        assertEq(MockERC20(Currency.unwrap(currency1)).allowance(user, address(hook)), 0, "no hook allowance t1");
-
-        // The hook keeps nothing: it pulled the maxes, settled what was used, and refunded the rest.
-        assertEq(MockERC20(Currency.unwrap(currency0)).balanceOf(address(hook)), 0, "hook holds no t0");
-        assertEq(MockERC20(Currency.unwrap(currency1)).balanceOf(address(hook)), 0, "hook holds no t1");
+        // The hook keeps nothing idle: it settled only the used amounts straight from the caller.
+        assertEq(token0.balanceOf(address(hook)), 0, "hook holds no t0");
+        assertEq(token1.balanceOf(address(hook)), 0, "hook holds no t1");
 
         // The caller spent only what was used (never more than the signed maxes).
-        assertLe(bal0Before - MockERC20(Currency.unwrap(currency0)).balanceOf(user), a0, "spent <= max t0");
-        assertLe(bal1Before - MockERC20(Currency.unwrap(currency1)).balanceOf(user), a1, "spent <= max t1");
+        assertLe(bal0Before - token0.balanceOf(user), a0, "spent <= max t0");
+        assertLe(bal1Before - token1.balanceOf(user), a1, "spent <= max t1");
     }
 
-    function test_depositWithPermit_RevertWhen_signedForWrongSpender() public {
-        // Signature names a spender other than the hook → Permit2 recovers a mismatched signer and reverts.
-        // Proves the on-chain Permit2 verification is live (not a no-op etch).
-        ISignatureTransfer.PermitBatchTransferFrom memory p = _permit(5000e18, 5000e18, 0);
-        bytes memory sig = _sign(p, makeAddr("notTheHook"));
+    /// @dev A genuinely bad signature (no front-run set the allowance) must surface a clear PermitFailed
+    ///      error immediately, not an opaque downstream settle/transfer revert.
+    function test_depositWithPermit_RevertWhen_badSignature() public {
+        uint256 a0 = 5000e18;
+        uint256 a1 = 5000e18;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Sign token0's permit with the WRONG key → recovered signer != user → permit reverts, and no
+        // allowance was ever set, so the hook must revert PermitFailed.
+        (, uint256 wrongPk) = makeAddrAndKey("notTheUser");
+        UnistrataHook.PermitSig memory bad0;
+        {
+            uint256 nonce = token0.nonces(user);
+            bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, user, address(hook), a0, nonce, deadline));
+            bytes32 digest = keccak256(abi.encodePacked("\x19\x01", token0.DOMAIN_SEPARATOR(), structHash));
+            (bad0.v, bad0.r, bad0.s) = vm.sign(wrongPk, digest);
+        }
+        UnistrataHook.PermitSig memory sig1 = _sign(token1, address(hook), a1, deadline);
 
         vm.prank(user);
-        vm.expectRevert(); // InvalidSigner (recovered signer != user)
-        hook.depositWithPermit(false, p, sig);
+        vm.expectRevert(UnistrataHook.UnistrataHook__PermitFailed.selector);
+        hook.depositWithPermit(false, a0, a1, 0, deadline, bad0, sig1);
     }
 
-    function test_depositWithPermit_RevertWhen_wrongTokenOrder() public {
-        // permitted tokens reversed → fails the token-binding check before Permit2 is touched.
-        ISignatureTransfer.PermitBatchTransferFrom memory p;
-        p.permitted = new ISignatureTransfer.TokenPermissions[](2);
-        p.permitted[0] = ISignatureTransfer.TokenPermissions({token: Currency.unwrap(currency1), amount: 1e18});
-        p.permitted[1] = ISignatureTransfer.TokenPermissions({token: Currency.unwrap(currency0), amount: 1e18});
-        p.nonce = 1;
-        p.deadline = block.timestamp + 1 hours;
+    function test_depositWithPermit_RevertWhen_belowMinSharesOut() public {
+        uint256 a0 = 100e18;
+        uint256 a1 = 100e18;
+        uint256 deadline = block.timestamp + 1 hours;
+        UnistrataHook.PermitSig memory sig0 = _sign(token0, address(hook), a0, deadline);
+        UnistrataHook.PermitSig memory sig1 = _sign(token1, address(hook), a1, deadline);
 
         vm.prank(user);
-        vm.expectRevert(UnistrataHook.UnistrataHook__BadPermit.selector);
-        hook.depositWithPermit(true, p, "");
+        vm.expectRevert(UnistrataHook.UnistrataHook__InsufficientShares.selector);
+        hook.depositWithPermit(false, a0, a1, type(uint256).max, deadline, sig0, sig1);
+    }
+
+    /// @dev Permit-griefing resistance: a watcher who front-runs the user by submitting the same signed
+    ///      permit directly to the token (consuming the nonce) cannot DoS the deposit — the allowance they
+    ///      set still stands, so the hook's try/permit-then-allowance path completes the deposit.
+    function test_depositWithPermit_frontRunCannotDoS() public {
+        uint256 a0 = 5000e18;
+        uint256 a1 = 5000e18;
+        uint256 deadline = block.timestamp + 1 hours;
+        UnistrataHook.PermitSig memory sig0 = _sign(token0, address(hook), a0, deadline);
+        UnistrataHook.PermitSig memory sig1 = _sign(token1, address(hook), a1, deadline);
+
+        // A griefer submits the user's token0 permit first (sets the allowance, consumes the nonce).
+        address griefer = makeAddr("griefer");
+        vm.prank(griefer);
+        IERC20Permit(address(token0)).permit(user, address(hook), a0, deadline, sig0.v, sig0.r, sig0.s);
+        assertEq(token0.allowance(user, address(hook)), a0, "front-run set the allowance");
+
+        // The deposit with the SAME signatures must still succeed (token0 permit would now revert, but the
+        // allowance is already there; token1 permit runs normally).
+        vm.prank(user);
+        uint256 shares = hook.depositWithPermit(false, a0, a1, 0, deadline, sig0, sig1); // sediment
+        assertGt(shares, 0, "deposit survived the front-run");
+        assertEq(hook.sediment().balanceOf(user), shares, "sediment shares minted");
     }
 }
