@@ -22,7 +22,7 @@ Each epoch the structure settles through a seniority waterfall — Bedrock is pa
 | **Live demo** | **[unistrata.vercel.app](https://unistrata.vercel.app)** |
 | **Live hook** | [`0xfc4f1c6aecad1507dd0ec4af4d72f62378c25840`](https://sepolia.uniscan.xyz/address/0xfc4f1c6aecad1507dd0ec4af4d72f62378c25840) · Unichain Sepolia (1301) |
 | **Reactive RSC** | [`0x3cad51414bbd94e19c47ef47fe2d65f89e467eea`](https://lasna.reactscan.net/address/0x3cad51414bbd94e19c47ef47fe2d65f89e467eea) · Reactive Lasna (5318007) |
-| **Tests** | 131 passing (Foundry, TDD) incl. stateful invariants — `forge test` |
+| **Tests** | 132 passing (Foundry, TDD) incl. stateful invariants — `forge test` |
 | **Cross-chain loop** | verified on-chain — spike → `emergencySettle` → `epochId 0→1` ([trail below](#verified-cross-chain-trail)) |
 | **Frontend** | `frontend/` — Next.js + Reown AppKit + wagmi/viem, deposit via Permit2, live Reactive feed |
 
@@ -187,7 +187,7 @@ forge install                # submodules: forge-std, v4-core/periphery, uniswap
 cp .env.example .env         # RPC URLs + keystore account names (only needed for the deploy scripts)
 
 forge build      # solc 0.8.34, optimizer 200 runs (hook + Permit2 path must fit the 24KB limit)
-forge test       # 131 tests, 19 suites — all pass (incl. the v4-template baseline suites)
+forge test       # 132 tests, 20 suites — all pass (incl. the v4-template baseline suites)
 ```
 
 Toolchain is pinned in `foundry.toml`: `evm_version = "osaka"` (cosmetic — bytecode is byte-identical to cancun), `bytecode_hash = "none"` + `cbor_metadata = false` for deterministic CREATE2 bytecode, `ffi = true` (the `.env`-writing scripts need it). The invariant profile runs `256 runs × depth 30`; CI can crank it via `FOUNDRY_INVARIANT_RUNS=10000`.
@@ -212,6 +212,7 @@ All scripts live in `script/unistrata/`. Every broadcasting run uses a keystore 
 | 04 | `04_DepositDemo` | Mints (permissionless `DemoERC20`) + approves, deposits into both tranches — **Sediment first**, then Bedrock, so the attachment cap holds. | `unichain_sep` |
 | 05 | `05_SpikeSwaps` | N=6 large alternating swaps (> `dCap`) to build variance and trip the circuit breaker. **MUST run `--slow`** (see gotchas). | `unichain_sep` |
 | 06 | `06_SpikeStep` | `--slow`-free alternative: one variance-building swap per invocation; self-syncs off the hook's on-chain `lastObservedTick`. | `unichain_sep` |
+| **07** | **`07_LiveMarket`** | **The live demo.** A realistic high-volume WETH/USDC session: Phase 1 normal trading (volume → fees, low variance), then Phase 2 a ~40% ETH crash that spikes `varAcc` past the trigger → cross-chain `emergencySettle` → **Bedrock NAV holds (protected), Sediment absorbs the drawdown**. Run `--slow`; watch the Observatory. Verified by `test/sim/LiveMarketDemo.t.sol`. | `unichain_sep` |
 
 Once cumulative `varAcc ≥ 4,000,000`, the RSC's `react()` fires `emergencySettle` back to the hook cross-chain (~1–3 min), bumping `epochId`.
 
@@ -272,7 +273,7 @@ Roadmap: tradeable epoch-dated **variance tokens** (pay realized σ² — comple
 
 1. **0:00–0:25 — Problem.** "LPs are forced sellers of volatility with no buyer. IL is just the bill." Show the money chart: vanilla LP bleeding below HODL.
 2. **0:25–1:00 — Idea.** The capital-structure framing. Open the Landing → Observatory `StrataCore`: Bedrock at the bottom (protected), Sediment on top (first-loss).
-3. **1:00–2:00 — Live mechanism.** Simulator → replay the **crash** scenario: price swings 42%, the variance gauge climbs, the Sediment layer visibly compresses while the Bedrock NAV line stays flat on its coupon track. Then the Observatory **live feed**: the real spike → RSC → `emergencySettle` callback, with Uniscan links on screen.
+3. **1:00–2:00 — Live mechanism (the money moment).** Run `07_LiveMarket` against the live pool: real volume flows (fees accrue), then ETH crashes ~40%. On the Observatory, the variance gauge spikes past the trigger, the live feed streams the real observations, and a Reactive contract on Lasna fires `emergencySettle` back cross-chain — no keeper. The result, on-chain and live: **Bedrock's NAV holds, protected; Sediment's NAV drops as it absorbs the entire drawdown** (~50% in testing). Then the Simulator replays the multi-epoch money chart for the full economics.
 4. **2:00–2:40 — Why it matters.** Sustainable on-chain fixed income sized off an honest, oracle-free risk measure; Sediment as a new vol-underwriting asset class; zero keeper infrastructure.
 5. **2:40–3:00 — Traction surface.** The real Permit2 deposit flow on testnet, the addresses, the repo. "Every parameter is a governance dial; every pool can have a capital structure."
 
@@ -285,7 +286,7 @@ Roadmap: tradeable epoch-dated **variance tokens** (pay realized σ² — comple
 | **Original idea** | Tranching IL + an in-pool variance oracle + a variance-priced coupon — a new primitive, not an integration |
 | **Unique execution** | Oracle-free σ² from tick deltas; σ²/8 actuarial pricing; keeper-less Reactive automation; epoch waterfall |
 | **Impact** | Fixed income for passive LPs + a tradeable vol-underwriting asset; works for any v4 pool |
-| **Functionality** | Invariant-tested waterfall (131 tests); end-to-end testnet run with real cross-chain RSC callbacks |
+| **Functionality** | Invariant-tested waterfall (132 tests); end-to-end testnet run with real cross-chain RSC callbacks |
 | **Presentation** | The money chart + the live layered visualization + the live Reactive feed |
 | **Reactive sponsor track** | Idiomatic RSC: subscriptions, callback-proxy auth, funding, CRON + event-driven triggers, recorded cross-chain tx trail |
 
@@ -293,7 +294,7 @@ Roadmap: tradeable epoch-dated **variance tokens** (pay realized σ² — comple
 
 ## Submission checklist
 
-- [x] Uniswap v4 hook, invariant-tested — **131 tests pass** (`forge test`)
+- [x] Uniswap v4 hook, invariant-tested — **132 tests pass** (`forge test`)
 - [x] Deployed live on Unichain Sepolia + Reactive Lasna (addresses above, in `.env` / `broadcast/`)
 - [x] Cross-chain settlement loop **verified on-chain** (spike → `emergencySettle` → `epochId 0→1`)
 - [x] Reactive sponsor track: subscriptions + callback-proxy auth + CRON & event triggers + funded + recorded trail (`REACTIVE.md`)
@@ -312,8 +313,8 @@ src/
   StratumToken.sol             # the beWETH / seWETH tranche share token
   libraries/{VarianceLib,NavLib,WaterfallLib}.sol
   reactive/UnistrataReactive.sol   # the RSC (CRON heartbeat + volatility circuit breaker)
-script/unistrata/              # 00_DeployMockTokens … 06_SpikeStep deploy runbook
-test/                          # 131 tests incl. stateful invariants
+script/unistrata/              # 00_DeployMockTokens … 07_LiveMarket deploy + live-demo runbook
+test/                          # 132 tests incl. stateful invariants
 sim/                           # Phase-5 scenario replays → sim/out/*.json (the money chart)
 frontend/                      # Next.js + Reown AppKit + wagmi/viem (bun)
 REACTIVE.md  PROGRESS.md        # Reactive integration notes + build log
