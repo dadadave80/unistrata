@@ -7,7 +7,7 @@ import { Badge } from '@/components/Badge';
 import { StrataCore } from '@/components/StrataCore';
 import { MoneyChart } from '@/components/MoneyChart';
 import { NumberTicker } from '@/components/NumberTicker';
-import { SCENARIOS, type ScenarioId } from '@/lib/sim-data';
+import { SCENARIOS, SIM_SOURCE, type ScenarioId } from '@/lib/sim-data';
 import { fmtUsd } from '@/lib/format';
 
 const simCSS = `
@@ -20,6 +20,11 @@ const simCSS = `
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .sm__pill:hover { color: var(--text-primary); }
 .sm__pill[data-on="true"] { background: var(--surface-raised); color: var(--text-primary); box-shadow: var(--elev-1); }
+.sm__context { display:flex; flex-wrap:wrap; align-items:baseline; gap: 6px 14px; margin-bottom: var(--space-6);
+  padding: 12px 15px; background: var(--surface-card); border:1px solid var(--border-subtle); border-radius: var(--radius-md); }
+.sm__period { font-family: var(--font-mono); font-size: 12px; letter-spacing:0.03em; color: var(--senior-200); font-weight:500; white-space:nowrap; }
+.sm__note { font-family: var(--font-sans); font-size: 13px; color: var(--text-secondary); line-height:1.5; flex:1; min-width:40%; }
+.sm__src { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-tertiary); width:100%; margin-top:1px; }
 .sm__grid { display:grid; grid-template-columns: 1fr 1.1fr; gap: var(--space-6); align-items: start; }
 .sm__readouts { display:grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--hairline); border-radius: var(--radius-md); overflow:hidden; margin-top: var(--space-5); }
 .sm__rd { background: var(--bg-sunken); padding: 13px 15px; }
@@ -70,7 +75,7 @@ export function Simulator() {
       <div className="sm__head">
         <div>
           <div className="sm__title">Simulator</div>
-          <p className="sm__sub">Pick a scenario and scrub the settled epochs. The capital structure and the money chart respond in sync — watch Sediment compress while Bedrock holds its line.</p>
+          <p className="sm__sub">Each scenario is <strong>real ETH/USD price history</strong>, replayed on-chain through the hook. Scrub the settled epochs — the capital structure and money chart respond in sync: Sediment compresses while Bedrock holds its line.</p>
         </div>
         <div className="sm__pills">
           {SCN.map((s) => (
@@ -78,6 +83,12 @@ export function Simulator() {
               onClick={() => { setScn(s.id); setPos(SCENARIOS[s.id].price.length - 1); }}>{s.label}</button>
           ))}
         </div>
+      </div>
+
+      <div className="sm__context">
+        <span className="sm__period">{data.period}</span>
+        <span className="sm__note">{data.note}</span>
+        <span className="sm__src">{SIM_SOURCE}</span>
       </div>
 
       <div className="sm__grid">
@@ -104,7 +115,7 @@ export function Simulator() {
 
       <div className="sm__scrub">
         <div className="sm__scrubhead">
-          <span className="sm__time">epoch {epochLabel} of {N - 1} · {data.name} scenario · replayed from sim/out</span>
+          <span className="sm__time">epoch {epochLabel} of {N - 1} · {data.period} · replayed on-chain</span>
           <span className="sm__price">tWETH {fmtUsd(price, 0)}</span>
         </div>
         <input className="sm__range" type="range" min={0} max={N - 1} step="any" value={p}
