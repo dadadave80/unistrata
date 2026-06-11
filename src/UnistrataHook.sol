@@ -205,9 +205,14 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         returns (uint256 shares)
     {
         if (!poolInitialized) revert UnistrataHook__NotInitialized();
+        // Price shares off the tranche's LIVE value (its waterfall slice of totalAssets) captured BEFORE
+        // liquidity is added — never off the stale internal NAV accumulator.
+        uint256 navPre = _liveTrancheNav(isBedrock);
         // payer == caller: the hook pulls owed tokens from the caller's ERC-20 allowance during settle.
         (uint256 depositValue, uint256 used0, uint256 used1) = _runDeposit(msg.sender, isBedrock, amount0Max, amount1Max);
-        shares = _finalizeDeposit(isBedrock, depositValue, used0, used1, msg.sender);
+        shares = _finalizeDeposit(isBedrock, navPre, depositValue, used0, used1, msg.sender);
+        _syncSediment();
+        if (isBedrock) _enforceAttachmentCap();
     }
 
     /// @notice Deposit via a Permit2 signature — no standing ERC-20 allowance to the hook. The caller
@@ -231,6 +236,10 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         uint256 amount0Max = permit.permitted[0].amount;
         uint256 amount1Max = permit.permitted[1].amount;
 
+        // Price shares off the tranche's LIVE value BEFORE pulling tokens (pulling to the hook would
+        // otherwise inflate totalAssets via its idle balance) and before adding liquidity.
+        uint256 navPre = _liveTrancheNav(isBedrock);
+
         // Pull the maxes from the caller to this hook via Permit2 (signed, exact, deadline-bounded).
         ISignatureTransfer.SignatureTransferDetails[] memory details =
             new ISignatureTransfer.SignatureTransferDetails[](2);
@@ -241,11 +250,15 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         // Add liquidity, settling the owed amounts from THIS hook's just-pulled balance (payer == hook).
         (uint256 depositValue, uint256 used0, uint256 used1) =
             _runDeposit(address(this), isBedrock, amount0Max, amount1Max);
-        shares = _finalizeDeposit(isBedrock, depositValue, used0, used1, msg.sender);
+        shares = _finalizeDeposit(isBedrock, navPre, depositValue, used0, used1, msg.sender);
 
         // Refund the unused remainder to the caller.
         if (amount0Max > used0) boundKey.currency0.transfer(msg.sender, amount0Max - used0);
         if (amount1Max > used1) boundKey.currency1.transfer(msg.sender, amount1Max - used1);
+
+        // Sync the junior residual + enforce the senior cap on the clean post-refund balance.
+        _syncSediment();
+        if (isBedrock) _enforceAttachmentCap();
     }
 
     /// @dev Run the deposit unlock; `payer` settles the owed tokens. Returns (numéraire value, used0, used1).
@@ -258,20 +271,23 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         (depositValue, used0, used1) = abi.decode(res, (uint256, uint256, uint256));
     }
 
-    /// @dev Mint tranche shares to `recipient`, advance the tranche NAV, and emit. Shared by both deposit paths.
-    function _finalizeDeposit(bool isBedrock, uint256 depositValue, uint256 used0, uint256 used1, address recipient)
-        internal
-        returns (uint256 shares)
-    {
-        uint256 nav = isBedrock ? bedrockNav : sedimentNav;
-        shares = _mintShares(isBedrock, nav, depositValue, recipient);
+    /// @dev Mint tranche shares to `recipient` at the tranche's LIVE NAV/share (`navPre`, captured before
+    ///      liquidity was added), advance the senior claim, and emit. The junior NAV is a derived residual
+    ///      re-synced by the caller after token settlement, so it is not written here.
+    function _finalizeDeposit(
+        bool isBedrock,
+        uint256 navPre,
+        uint256 depositValue,
+        uint256 used0,
+        uint256 used1,
+        address recipient
+    ) internal returns (uint256 shares) {
+        shares = _mintShares(isBedrock, navPre, depositValue, recipient);
 
-        if (isBedrock) {
-            bedrockNav = nav + depositValue;
-            _enforceAttachmentCap();
-        } else {
-            sedimentNav = nav + depositValue;
-        }
+        // The senior CLAIM grows by exactly the principal added (it does not mark down with price); the
+        // junior is the residual. Using += (not navPre + depositValue) preserves the existing claim even
+        // when the tranche is currently impaired (navPre < bedrockNav).
+        if (isBedrock) bedrockNav += depositValue;
 
         emit Deposit(recipient, isBedrock, used0, used1, depositValue, shares);
     }
@@ -310,6 +326,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         bytes memory res =
             poolManager.unlock(abi.encode(Action.Withdraw, abi.encode(msg.sender, req.isBedrock, uint256(req.shares))));
         value = abi.decode(res, (uint256));
+        _syncSediment(); // re-pin the junior residual to the post-withdrawal live assets
         emit WithdrawClaimed(msg.sender, id, value);
     }
 
@@ -449,27 +466,34 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         (address user, bool isBedrock, uint256 shares) = abi.decode(payload, (address, bool, uint256));
         StratumToken token = isBedrock ? bedrock : sediment;
         uint256 supply = token.totalSupply();
-        uint256 nav = isBedrock ? bedrockNav : sedimentNav;
-        uint256 value = Math.mulDiv(nav, shares, supply);
 
+        // Price the redemption off the tranche's LIVE value (its seniority-respecting slice of the live
+        // pool), NOT the stale internal NAV. Since value <= trancheLive <= totalA, the proportional
+        // liquidity removal can never exceed the position — no SafeCastOverflow DoS in a drawdown — and a
+        // junior can never extract more than its first-loss residual.
         uint256 totalA = totalAssets();
-        if (totalA != 0) {
-            (uint128 liquidity,,) =
-                poolManager.getPositionInfo(boundId, address(this), tickLower, tickUpper, POSITION_SALT);
-            uint128 lRemove = uint128(Math.mulDiv(liquidity, value, totalA));
-            if (lRemove != 0) {
-                (BalanceDelta delta,) = poolManager.modifyLiquidity(
-                    boundKey,
-                    ModifyLiquidityParams({
-                        tickLower: tickLower,
-                        tickUpper: tickUpper,
-                        liquidityDelta: -int256(uint256(lRemove)),
-                        salt: POSITION_SALT
-                    }),
-                    ""
-                );
-                _takeLeg(boundKey.currency0, delta.amount0(), user);
-                _takeLeg(boundKey.currency1, delta.amount1(), user);
+        uint256 value = supply == 0 ? 0 : Math.mulDiv(_liveTrancheNav(isBedrock), shares, supply);
+
+        if (totalA != 0 && value != 0) {
+            {
+                (uint128 liquidity,,) =
+                    poolManager.getPositionInfo(boundId, address(this), tickLower, tickUpper, POSITION_SALT);
+                uint256 lr = Math.mulDiv(liquidity, value, totalA);
+                uint128 lRemove = lr >= liquidity ? liquidity : uint128(lr); // clamp; value<=totalA ⇒ lr<=liquidity
+                if (lRemove != 0) {
+                    (BalanceDelta delta,) = poolManager.modifyLiquidity(
+                        boundKey,
+                        ModifyLiquidityParams({
+                            tickLower: tickLower,
+                            tickUpper: tickUpper,
+                            liquidityDelta: -int256(uint256(lRemove)),
+                            salt: POSITION_SALT
+                        }),
+                        ""
+                    );
+                    _takeLeg(boundKey.currency0, delta.amount0(), user);
+                    _takeLeg(boundKey.currency1, delta.amount1(), user);
+                }
             }
             // pay the withdrawer's proportional share of idle (collected fees / residual) too
             _payIdle(boundKey.currency0, value, totalA, user);
@@ -477,11 +501,9 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
         }
 
         token.burn(address(this), shares);
-        if (isBedrock) {
-            bedrockNav = nav - value;
-        } else {
-            sedimentNav = nav - value;
-        }
+        // Reduce the senior CLAIM pro-rata so remaining holders' per-share claim is unchanged; the junior
+        // NAV is a derived residual re-synced by claim() after this unlock returns.
+        if (isBedrock && supply != 0) bedrockNav -= Math.mulDiv(bedrockNav, shares, supply);
 
         return abi.encode(value);
     }
@@ -546,6 +568,34 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
     //                          INTERNAL: SHARES & CAP
     //////////////////////////////////////////////////////////////////////////*//
 
+    /// @dev The LIVE bedrock/sediment split of current assets. Bedrock is senior: it is made whole first
+    ///      up to its claim (`bedrockNav`), capped at live assets; sediment is the junior residual and
+    ///      bears price/IL moves first. This is the single source of truth for pricing deposits AND
+    ///      withdrawals, so shares are never minted/redeemed against a stale internal NAV that has
+    ///      drifted from `totalAssets()` mid-epoch. Because `liveBedrock,liveSediment <= A`, a tranche's
+    ///      pro-rata `value` is always <= A, so a withdrawal can never try to remove more than the
+    ///      position holds.
+    function _liveNavs() internal view returns (uint256 liveBedrock, uint256 liveSediment, uint256 A) {
+        A = totalAssets();
+        liveBedrock = A < bedrockNav ? A : bedrockNav;
+        liveSediment = A - liveBedrock;
+    }
+
+    /// @dev The live value of one tranche (its seniority-respecting slice of `totalAssets()`).
+    function _liveTrancheNav(bool isBedrock) internal view returns (uint256) {
+        (uint256 liveBedrock, uint256 liveSediment,) = _liveNavs();
+        return isBedrock ? liveBedrock : liveSediment;
+    }
+
+    /// @dev Re-pin the stored junior NAV to its live residual. The junior has no protected claim — it is
+    ///      always `totalAssets() - min(totalAssets(), bedrockNav)`. Called after every deposit/claim so
+    ///      views stay honest; the senior claim (`bedrockNav`) is tracked explicitly elsewhere.
+    function _syncSediment() internal {
+        if (!poolInitialized) return;
+        (, uint256 liveSediment,) = _liveNavs();
+        sedimentNav = liveSediment;
+    }
+
     /// @dev Mint tranche shares at the current NAV/share. First deposit carves dead shares to a burn
     ///      address (inflation guard) and mints 1:1; later deposits mint `value·supply/nav`.
     function _mintShares(bool isBedrock, uint256 nav, uint256 depositValue, address to)
@@ -560,6 +610,7 @@ contract UnistrataHook is BaseHook, AbstractCallback, ReentrancyGuardTransient {
             minted = depositValue - DEAD_SHARES;
             token.mint(to, minted);
         } else {
+            if (nav == 0) revert UnistrataHook__DepositTooSmall(); // wiped tranche — share price undefined
             minted = Math.mulDiv(depositValue, supply, nav);
             if (minted == 0) revert UnistrataHook__DepositTooSmall();
             token.mint(to, minted);

@@ -84,10 +84,12 @@ contract UnistrataDepositTest is BaseTest {
         uint256 shares = _depositSediment(100e18, 100e18);
         uint256 jnav = hook.sedimentNav();
         assertGt(jnav, 0);
-        assertEq(hook.sediment().totalSupply(), jnav);
+        // The junior NAV now tracks the live position value (totalAssets), which sits a few wei below the
+        // deposited input value due to v4's liquidity round-trip quantization — so supply ≈ nav (not ==).
+        assertApproxEqAbs(hook.sediment().totalSupply(), jnav, 5);
         assertEq(hook.sediment().balanceOf(DEAD_ADDRESS), DEAD_SHARES);
-        assertEq(hook.sediment().balanceOf(alice), jnav - DEAD_SHARES);
-        assertEq(shares, jnav - DEAD_SHARES);
+        assertEq(shares, hook.sediment().balanceOf(alice)); // depositor received the minted remainder
+        assertApproxEqAbs(hook.sediment().balanceOf(alice), jnav - DEAD_SHARES, 5);
     }
 
     // totalAssets (read from the live position) matches the tracked tranche NAVs to within a few wei
