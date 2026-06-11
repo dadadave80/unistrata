@@ -37,7 +37,8 @@ contract UnistrataReactive is AbstractReactive {
 
     // --- ReactVM state ---
     uint256 public cronTicks;
-    uint256 public lastSpikeVarAcc;
+    uint256 public lastSpikeVarAcc; // varAcc baseline the emergency trigger measures FROM (re-set each settle)
+    uint256 public latestVarAcc; // most recent varAcc seen on an observation (used to re-baseline on settle)
 
     constructor(
         uint256 _originChainId,
@@ -97,13 +98,20 @@ contract UnistrataReactive is AbstractReactive {
     function _onHeartbeat() internal {
         if (++cronTicks >= ticksPerEpoch) {
             cronTicks = 0;
+            // Re-baseline the emergency trigger to the latest observed varAcc so it measures variance
+            // accumulated AFTER this settlement — a per-epoch RATE, not a cumulative odometer that would
+            // eventually trip even in a calm market and lets a griefer's drips never reset (review #14/H-2).
+            lastSpikeVarAcc = latestVarAcc;
             _emitCallback("settleEpoch(address)");
         }
     }
 
-    /// @dev Fire an early settlement when cumulative realized variance jumps past the spike threshold.
+    /// @dev Fire an early settlement when realized variance SINCE THE LAST SETTLEMENT jumps past the spike
+    ///      threshold. `lastSpikeVarAcc` is re-baselined on every settle (heartbeat or emergency), so this
+    ///      is a per-epoch rate detector rather than a since-genesis odometer.
     function _onObservation(bytes memory data) internal {
         (, uint256 varAcc) = abi.decode(data, (int24, uint256));
+        latestVarAcc = varAcc; // remember the latest so a heartbeat settle can re-baseline the trigger
         if (varAcc - lastSpikeVarAcc >= spikeThreshold) {
             lastSpikeVarAcc = varAcc;
             cronTicks = 0; // the epoch rolls early → resync the heartbeat counter

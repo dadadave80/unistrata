@@ -84,6 +84,22 @@ contract UnistrataReactiveTest is Test {
         assertEq(_react(_obsLog(2 * SPIKE_THRESHOLD + 1)).length, 1); // crosses again → fire
     }
 
+    // a heartbeat settlement re-baselines the spike trigger to the latest varAcc, so the breaker measures
+    // per-epoch variance (a rate) rather than a cumulative odometer that eventually trips in a calm market
+    function test_heartbeatReBaselines_noSpuriousEmergency() public {
+        // a benign observation at 0.6× threshold — no fire, but it advances the latest-seen varAcc
+        assertEq(_react(_obsLog(SPIKE_THRESHOLD * 6 / 10)).length, 0);
+
+        // a scheduled heartbeat settles the epoch (3 CRON ticks) and re-baselines the breaker to 0.6×
+        _react(_cronLog());
+        _react(_cronLog());
+        assertEq(_react(_cronLog()).length, 1);
+
+        // a later observation whose ABSOLUTE varAcc (1.2×) exceeds the threshold must NOT fire: only
+        // +0.6× has accrued since the re-baseline. Pre-fix (odometer from zero) this would emergency-settle.
+        assertEq(_react(_obsLog(SPIKE_THRESHOLD * 12 / 10)).length, 0);
+    }
+
     // an emergency settle resets the CRON counter so the heartbeat stays in sync
     function test_spike_resetsCronCounter() public {
         _react(_cronLog()); // cronTicks = 1
