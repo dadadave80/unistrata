@@ -101,7 +101,7 @@ empirically on testnet (no published minimum beyond the gas floor).
 
 **Current stack** (Permit2 deposit path; addresses in `.env`, receipts under `broadcast/`) — deployed,
 pool-initialized, subscribed, funded, and **demonstrated end-to-end on this fresh hook** (`04`/`05` re-run
-Jun 11 2026): deposits into both tranches → 8 `--slow` spike swaps drove `varAcc` past the 4,000,000
+Jun 11 2026): deposits into both tranches → 6 `--slow` spike swaps drove `varAcc` past the 4,000,000
 trigger → Reactive `emergencySettle` closed epoch 0 early → `epochId 0 → 1`. v4 sorts by address, so on
 this stack **token0 = tWETH (18), token1 = tUSDC (6)** (the order flipped from the prior deploy).
 
@@ -128,7 +128,7 @@ top-up `0x6436b176…` (5318007, 5 REACT).
 | Hop | Chain | Tx | What |
 |---|---|---|---|
 | 0. Deposit | Unichain 1301 | `0xe34f6331…5eb1` (Bedrock), `0x256b1a8d…de2d` (Sediment) | block 54296142, $12K each |
-| 1. Build variance | Unichain 1301 | 8 `--slow` swaps, blocks 54296191–197 | `varAcc` 1,000,000 → 6,000,000 |
+| 1. Build variance | Unichain 1301 | 6 `--slow` swaps, blocks 54296191–197 | `varAcc` 1,000,000 → 6,000,000 |
 | **1b. Threshold crossing** | Unichain 1301 | **`0xf096b8…e52d`** (block 54296197) | `UnistrataObservation` `varAcc = 6,000,000` (past the 4M trigger) |
 | 2. RSC reacts | Lasna 5318007 | (Reactscan, RSC `0x3cad51…`) | `react()` → `Callback` (`emergencySettle`) |
 | **3. Callback lands** | Unichain 1301 | **`0x006a1a…5cd3`** (block 54296205) | `emergencySettle` → `EmergencySettled` + `EpochSettled`, `epochId` 0→1 |

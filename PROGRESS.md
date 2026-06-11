@@ -28,7 +28,7 @@ deploying EOA `0xDAdaDA4E…C751`. Subscribed (two `Subscribe` events, zero `Sub
 hook `0xcb78de28…` + RSC `0x6436b176…`.
 
 **Spike circuit-breaker — full 3-hop trail (fresh hook `0xfc4f…5840` / RSC `0x3cad51…`, Jun 11 2026):**
-deposits (Bedrock `0xe34f6331…5eb1`, Sediment `0x256b1a8d…de2d`, blk 54296142, $12K each) → 8 `--slow`
+deposits (Bedrock `0xe34f6331…5eb1`, Sediment `0x256b1a8d…de2d`, blk 54296142, $12K each) → 6 `--slow`
 swaps (blocks 54296191–197) drove `varAcc` 1e6→6e6; **threshold crossed** at `0xf096b8…e52d` (blk 54296197,
 `varAcc=6,000,000` past the 4e6 trigger) → RSC reacted → **`emergencySettle` landed** `0x006a1a…5cd3`
 (blk 54296205): `EmergencySettled` + `EpochSettled`, `epochId` 0→1. ✅ The Observatory reads this live.
