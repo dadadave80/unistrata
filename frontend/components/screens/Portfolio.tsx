@@ -106,7 +106,7 @@ export function Portfolio() {
   const claimable = queued.filter((r) => r.eligible).length;
 
   const scaleMax = live.tvl ? live.tvl * 1.3 : 30000;
-  const volRatio = live.spikeThreshold > 0 ? live.varAcc / live.spikeThreshold : 0;
+  const volRatio = live.spikeThreshold > 0 ? live.varAccEpoch / live.spikeThreshold : 0;
 
   return (
     <div>
@@ -235,7 +235,7 @@ export function Portfolio() {
               <Gauge value={volRatio} min={0} max={2} size={168} valueText={volRatio.toFixed(2) + '×'} unit="of trigger" tone="senior"
                 thresholds={[{ at: 1, color: 'var(--loss-400)' }]} />
               <div className="ps__gaugemeta">
-                <Stat label="varAcc" size="sm" value={<NumberTicker value={live.varAcc} />} delta={volRatio >= 1 ? 'trigger crossed' : 'below trigger'} deltaDir={volRatio >= 1 ? 'up' : 'down'} />
+                <Stat label="varAcc · this epoch" size="sm" value={<NumberTicker value={live.varAccEpoch} />} delta={volRatio >= 1 ? 'trigger crossed' : 'below trigger'} deltaDir={volRatio >= 1 ? 'up' : 'down'} />
                 <Stat label="Emergency trigger" size="sm" value={live.spikeThreshold.toLocaleString()} unit="varAcc · RSC constant" />
                 <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.5, maxWidth: '24ch' }}>
                   {volRatio >= 1 ? 'Variance crossed the trigger → Reactive settles the epoch early.' : 'Below the trigger — the epoch runs to its scheduled settlement.'}

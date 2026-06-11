@@ -85,7 +85,7 @@ export function Landing() {
         <div className="lg__metric"><Stat label="Total value locked" size="md" value={<NumberTicker value={live.tvl} prefix="$" />} unit={`epoch ${live.epoch}`} /></div>
         <div className="lg__metric"><Stat label="Bedrock NAV" tone="senior" size="md" value={<NumberTicker value={live.bedrockNav} prefix="$" />} unit="protected first" /></div>
         <div className="lg__metric"><Stat label="Sediment NAV" tone="junior" size="md" value={<NumberTicker value={live.sedimentNav} prefix="$" />} unit="first-loss + fees" /></div>
-        <div className="lg__metric"><Stat label="Realized variance" size="md" value={<NumberTicker value={live.varAcc} />} unit="varAcc, on-chain ticks" delta={live.varAcc >= live.spikeThreshold ? 'spike trigger crossed' : 'below trigger'} deltaDir={live.varAcc >= live.spikeThreshold ? 'up' : undefined} /></div>
+        <div className="lg__metric"><Stat label="Realized variance" size="md" value={<NumberTicker value={live.varAccEpoch} />} unit="varAcc this epoch · on-chain ticks" delta={live.varAccEpoch >= live.spikeThreshold ? 'spike trigger crossed' : 'below trigger'} deltaDir={live.varAccEpoch >= live.spikeThreshold ? 'up' : undefined} /></div>
       </section>
 
       <section>

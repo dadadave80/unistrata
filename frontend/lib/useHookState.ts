@@ -4,7 +4,7 @@ import { useReadContracts } from 'wagmi';
 import { HOOK_ADDRESS, hookAbi, CHAIN_ID } from './contracts';
 import { fromWad } from './format';
 
-const FNS = ['bedrockNav', 'sedimentNav', 'epochId', 'varAcc', 'epochStart', 'epochDuration'] as const;
+const FNS = ['bedrockNav', 'sedimentNav', 'epochId', 'varAcc', 'epochStart', 'epochDuration', 'varAccAtEpochStart'] as const;
 
 // The RSC's emergency trigger lives on the UnistrataReactive contract (Lasna), not the hook — it is a fixed
 // protocol constant, displayed for context, not a fabricated stand-in for a missing live read.
@@ -15,7 +15,8 @@ export type HookState = {
   sedimentNav: number;
   tvl: number;
   epoch: number;
-  varAcc: number;
+  varAcc: number; // cumulative accumulator (monotonic; never reset on-chain)
+  varAccEpoch: number; // realized variance THIS epoch (varAcc − varAccAtEpochStart) — what the RSC triggers on
   epochStart: number;
   epochDuration: number;
   secondsToSettle: number;
@@ -31,6 +32,7 @@ const NOT_LIVE: HookState = {
   tvl: 0,
   epoch: 0,
   varAcc: 0,
+  varAccEpoch: 0,
   epochStart: 0,
   epochDuration: 0,
   secondsToSettle: 0,
@@ -66,6 +68,10 @@ export function useHookState(): HookState {
   const sedimentNav = Math.round(fromWad(at(1)));
   const epoch = Number(at(2));
   const varAcc = Number(at(3));
+  // Per-epoch realized variance = cumulative varAcc − the snapshot taken at epoch start. This (not raw
+  // cumulative varAcc) is what the RSC's emergency trigger watches, and it resets at each settlement. If
+  // the baseline read is missing, fall back to 0 (understate) rather than the cumulative value (overstate).
+  const varAccEpoch = at(6) !== undefined ? Math.max(0, varAcc - Number(at(6))) : 0;
   const epochStart = at(4) !== undefined ? Number(at(4)) : 0;
   const epochDuration = at(5) !== undefined ? Number(at(5)) : 0;
   const nowSec = Math.floor(Date.now() / 1000);
@@ -78,6 +84,7 @@ export function useHookState(): HookState {
     tvl: bedrockNav + sedimentNav,
     epoch,
     varAcc,
+    varAccEpoch,
     epochStart,
     epochDuration,
     secondsToSettle,
