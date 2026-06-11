@@ -10,11 +10,10 @@ deviations from the plan (with reasons). Newest status at the top of each phase.
 
 ## Live testnet deployment (Phase 4 — verified on-chain, FULL LOOP CLOSED 2026-06-11)
 
-Final Unistrata stack (**Permit2 redeploy, Jun 10 2026**) — deployed, pool-initialized, subscribed, and
-funded (addresses in `.env`; receipts under `broadcast/`). v4 address-sort flipped the order: **token0 =
-tWETH (18), token1 = tUSDC (6)**. The cross-chain loop was verified end-to-end on the prior deployment
-(identical logic, trail below) and is **pending a re-run against this fresh hook** (`04`/`05`/`06`;
-`epochId 0`, no deposits/swaps yet):
+Final Unistrata stack (**Permit2 redeploy, Jun 10 2026**) — deployed, pool-initialized, subscribed,
+funded, and **demonstrated end-to-end on the fresh hook** (`04`/`05` re-run Jun 11 2026 → `epochId 0→1`,
+trail below; addresses in `.env`; receipts under `broadcast/`). v4 address-sort flipped the order:
+**token0 = tWETH (18), token1 = tUSDC (6)**:
 
 | Contract | Chain | Address |
 |---|---|---|
@@ -28,11 +27,11 @@ deploying EOA `0xDAdaDA4E…C751`. Subscribed (two `Subscribe` events, zero `Sub
 5318007 + UnistrataObservation on the hook at 1301). Funded via one multichain `03` run (both `0x1`):
 hook `0xcb78de28…` + RSC `0x6436b176…`.
 
-**Spike circuit-breaker — full 3-hop trail (_prior_ deployment, hook `0x721480…d840` / RSC `0x3d156B…`):**
-deposits (`0xb5552794…`, `0x2a8f2a23…`) → 6 `--slow` swaps (blocks 54247937–944) drove `varAcc` to 6e6;
-**threshold crossed** at `0xe07d6c49…` (block 54247942, `varAcc=4,000,000`) → RSC reacted (Reactscan,
-`CALLBACKS=1`) → **`emergencySettle` landed** `0x4faab03f…` (block 54247954, ~12 blocks later):
-`EmergencySettled` + `EpochSettled`, `epochId` 0→1. ✅ (Re-run `05`/`06` to regenerate on the fresh hook.)
+**Spike circuit-breaker — full 3-hop trail (fresh hook `0xfc4f…5840` / RSC `0x3cad51…`, Jun 11 2026):**
+deposits (Bedrock `0xe34f6331…5eb1`, Sediment `0x256b1a8d…de2d`, blk 54296142, $12K each) → 8 `--slow`
+swaps (blocks 54296191–197) drove `varAcc` 1e6→6e6; **threshold crossed** at `0xf096b8…e52d` (blk 54296197,
+`varAcc=6,000,000` past the 4e6 trigger) → RSC reacted → **`emergencySettle` landed** `0x006a1a…5cd3`
+(blk 54296205): `EmergencySettled` + `EpochSettled`, `epochId` 0→1. ✅ The Observatory reads this live.
 
 Two fixes found via this run: hook `rvm_id` had to be `tx.origin` not the CREATE2 factory (callbacks
 reverted "Authorized RVM ID only"); spike swaps must use `--slow` (one variance observation per block).

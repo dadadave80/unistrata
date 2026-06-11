@@ -100,10 +100,10 @@ empirically on testnet (no published minimum beyond the gas floor).
 ## Live testnet deployment (Phase 4 — Permit2 redeploy, Jun 10 2026)
 
 **Current stack** (Permit2 deposit path; addresses in `.env`, receipts under `broadcast/`) — deployed,
-pool-initialized, subscribed, and funded. The cross-chain loop was **verified end-to-end on-chain on the
-prior deployment** (identical logic — see the trail below) and is **pending a re-run against this fresh
-hook** (`04`/`05`/`06`); the fresh hook is at `epochId 0` with no deposits/swaps yet. v4 sorts by address,
-so on this stack **token0 = tWETH (18), token1 = tUSDC (6)** (the order flipped from the prior deploy).
+pool-initialized, subscribed, funded, and **demonstrated end-to-end on this fresh hook** (`04`/`05` re-run
+Jun 11 2026): deposits into both tranches → 8 `--slow` spike swaps drove `varAcc` past the 4,000,000
+trigger → Reactive `emergencySettle` closed epoch 0 early → `epochId 0 → 1`. v4 sorts by address, so on
+this stack **token0 = tWETH (18), token1 = tUSDC (6)** (the order flipped from the prior deploy).
 
 | Contract | Chain | Address | Deploy tx |
 |---|---|---|---|
@@ -122,20 +122,19 @@ top-up `0x6436b176…` (5318007, 5 REACT).
 
 ### Spike circuit-breaker — full 3-hop trail (the "wow moment")
 
-> **Trail from the _prior_ deployment** (hook `0x721480…d840`, RSC `0x3d156B…1d34`) — the mechanism is
-> proven on-chain below. Re-run `04`/`05`/`06` against the fresh hook `0xfc4f…5840` to regenerate this
-> trail on the current stack before recording the video.
+> **Fresh trail on the current hook** `0xfc4f…5840` / RSC `0x3cad51…` (`04`/`05` re-run Jun 11 2026).
+> The Observatory reads these same events live on-chain via `getLogs`.
 
 | Hop | Chain | Tx | What |
 |---|---|---|---|
-| 0. Deposit | Unichain 1301 | `0xb5552794…`, `0x2a8f2a23…` | into Sediment + Bedrock |
-| 1. Build variance | Unichain 1301 | 6 `--slow` swaps, blocks 54247937–944 | `varAcc` → 6,000,000 |
-| **1b. Threshold crossing** | Unichain 1301 | **`0xe07d6c49…`** (block 54247942) | `UnistrataObservation` `varAcc = 4,000,000` |
-| 2. RSC reacts | Lasna 5318007 | (Reactscan, RSC `0x3d156B…`, `CALLBACKS = 1`) | `react()` → `Callback` (`emergencySettle`) |
-| **3. Callback lands** | Unichain 1301 | **`0x4faab03f…b14d56b0`** (block 54247954) | `emergencySettle` → `EmergencySettled` + `EpochSettled`, `epochId` 0→1 |
+| 0. Deposit | Unichain 1301 | `0xe34f6331…5eb1` (Bedrock), `0x256b1a8d…de2d` (Sediment) | block 54296142, $12K each |
+| 1. Build variance | Unichain 1301 | 8 `--slow` swaps, blocks 54296191–197 | `varAcc` 1,000,000 → 6,000,000 |
+| **1b. Threshold crossing** | Unichain 1301 | **`0xf096b8…e52d`** (block 54296197) | `UnistrataObservation` `varAcc = 6,000,000` (past the 4M trigger) |
+| 2. RSC reacts | Lasna 5318007 | (Reactscan, RSC `0x3cad51…`) | `react()` → `Callback` (`emergencySettle`) |
+| **3. Callback lands** | Unichain 1301 | **`0x006a1a…5cd3`** (block 54296205) | `emergencySettle` → `EmergencySettled` + `EpochSettled`, `epochId` 0→1 |
 
-The callback executed **~12 blocks (~12s)** after the threshold crossing — zero off-chain infrastructure,
-fully on-chain cross-chain automation. ✅ Phase 4 acceptance met.
+The callback executed within a handful of blocks of the threshold crossing — zero off-chain
+infrastructure, fully on-chain cross-chain automation. ✅ Phase 4 acceptance met on the fresh stack.
 
 > **Gotcha fixed along the way:** the hook is deployed via CREATE2 (HookMiner), so `AbstractCallback` set
 > `rvm_id = msg.sender = the CREATE2 factory`; callbacks carry the EOA's rvm id, so `emergencySettle`
