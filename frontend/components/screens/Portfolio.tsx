@@ -8,10 +8,14 @@ import { Stat } from '@/components/Stat';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
 import { StrataCore } from '@/components/StrataCore';
+import { Gauge } from '@/components/Gauge';
+import { EpochCountdown } from '@/components/EpochCountdown';
+import { EventFeed } from '@/components/EventFeed';
 import { NumberTicker } from '@/components/NumberTicker';
 import { ShieldCheck, Flame, Wallet, Clock, Check } from 'lucide-react';
-import { BEDROCK_TOKEN, SEDIMENT_TOKEN, erc20Abi, CHAIN_ID } from '@/lib/contracts';
+import { BEDROCK_TOKEN, SEDIMENT_TOKEN, erc20Abi, CHAIN_ID, EXPLORER } from '@/lib/contracts';
 import { useHookState } from '@/lib/useHookState';
+import { useHookEvents } from '@/lib/useHookEvents';
 import { useWithdrawRequests } from '@/lib/useWithdrawRequests';
 import { useShell } from '@/context/Shell';
 import { shortAddr } from '@/lib/format';
@@ -44,6 +48,9 @@ const psCSS = `
 .ps__empty { font-family: var(--font-sans); font-size: 13.5px; color: var(--text-secondary); line-height:1.55; padding: 6px 2px var(--space-5); }
 .ps__wq { display:flex; align-items:center; justify-content:space-between; gap: var(--space-4); font-family: var(--font-mono); font-size: 12.5px; color: var(--text-secondary); }
 .ps__wq b { color: var(--senior-200); font-weight:500; }
+.ps__gaugewrap { display:flex; align-items:center; gap: var(--space-6); }
+.ps__gaugemeta { display:flex; flex-direction: column; gap: var(--space-4); }
+.ps__feedwrap { margin-top: var(--space-7); }
 @media (max-width: 1000px){ .ps__grid{ grid-template-columns: 1fr; } }
 `;
 
@@ -53,7 +60,8 @@ export function Portfolio() {
   const { open } = useAppKit();
   const { address, isConnected } = useAccount();
   const { core, runSettlement, nav } = useShell();
-  const live = useHookState(); // live pool state (30s refetch) with snapshot fallback
+  const live = useHookState(); // live pool state (30s refetch) — live data only, no fallback
+  const liveFeed = useHookEvents(); // live on-chain event feed (20s rescan) — real logs only
 
   // Share balances + tranche supplies → price each holding at the live NAV per share.
   const { data: reads } = useReadContracts({
@@ -107,10 +115,10 @@ export function Portfolio() {
           <div className="ps__title">Portfolio</div>
           <div className="ps__sub">
             {isConnected ? <>your position · {address ? shortAddr(address) : ''} · </> : null}
-            {live.live ? 'live' : 'snapshot'} · tWETH/tUSDC · valued at the current epoch NAV
+            {live.live ? 'live' : 'awaiting live data'} · tWETH/tUSDC · valued at the current epoch NAV
           </div>
         </div>
-        <Badge variant={live.live ? 'live' : 'neutral'} live={live.live}>{live.live ? 'Reactive Network connected' : 'RPC unreachable · snapshot'}</Badge>
+        <Badge variant={live.live ? 'live' : 'neutral'} live={live.live}>{live.live ? 'Reactive Network connected' : 'RPC unreachable'}</Badge>
       </div>
 
       <div className="ps__grid">
@@ -122,12 +130,12 @@ export function Portfolio() {
           </div>
           <StrataCore seniorNav={live.bedrockNav} juniorNav={live.sedimentNav} scaleMax={scaleMax} height={360} sweepKey={core.sweepKey} />
           <div className="ps__navrow">
-            <div className="ps__navcell"><Stat label="Total value locked" size="sm" value={<NumberTicker value={live.tvl} prefix="$" />} unit={`epoch ${live.epoch}`} /></div>
+            <div className="ps__navcell"><Stat label="Total value locked" size="sm" value={<NumberTicker value={live.tvl} prefix="$" />} unit="tWETH/tUSDC" /></div>
             <div className="ps__navcell"><Stat label="Bedrock NAV" tone="senior" size="sm" value={<NumberTicker value={live.bedrockNav} prefix="$" />} /></div>
             <div className="ps__navcell"><Stat label="Sediment NAV" tone="junior" size="sm" value={<NumberTicker value={live.sedimentNav} prefix="$" />} /></div>
           </div>
           <div className="ps__navrow" style={{ marginTop: 1 }}>
-            <div className="ps__navcell"><Stat label="Realized variance" size="sm" value={<NumberTicker value={live.varAcc} />} unit="varAcc" delta={volRatio >= 1 ? 'spike trigger crossed' : `${(volRatio * 100).toFixed(0)}% of trigger`} deltaDir={volRatio >= 1 ? 'up' : undefined} /></div>
+            <div className="ps__navcell"><Stat label="Epoch" size="sm" value={<NumberTicker value={live.epoch} />} unit="settled on-chain" /></div>
             <div className="ps__navcell"><Stat label="Bedrock outstanding" size="sm" value={<NumberTicker value={beSupply} decimals={0} />} unit="BEDR" /></div>
             <div className="ps__navcell"><Stat label="Sediment outstanding" size="sm" value={<NumberTicker value={seSupply} decimals={0} />} unit="SEDI" /></div>
           </div>
@@ -212,7 +220,32 @@ export function Portfolio() {
               )}
             </Panel>
           )}
+
+          <Panel eyebrow="Realized variance" title="varAcc vs trigger">
+            <div className="ps__gaugewrap">
+              <Gauge value={volRatio} min={0} max={2} size={168} valueText={volRatio.toFixed(2) + '×'} unit="of trigger" tone="senior"
+                thresholds={[{ at: 1, color: 'var(--loss-400)' }]} />
+              <div className="ps__gaugemeta">
+                <Stat label="varAcc" size="sm" value={<NumberTicker value={live.varAcc} />} delta={volRatio >= 1 ? 'trigger crossed' : 'below trigger'} deltaDir={volRatio >= 1 ? 'up' : 'down'} />
+                <Stat label="Emergency trigger" size="sm" value={live.spikeThreshold.toLocaleString()} unit="varAcc · RSC constant" />
+                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.5, maxWidth: '24ch' }}>
+                  {volRatio >= 1 ? 'Variance crossed the trigger → Reactive settles the epoch early.' : 'Below the trigger — the epoch runs to its scheduled settlement.'}
+                </div>
+              </div>
+            </div>
+          </Panel>
+
+          <Panel eyebrow="Epoch clock" title="Next settlement">
+            <EpochCountdown epoch={live.epoch} secondsLeft={live.secondsToSettle} epochLength={live.epochDuration} running />
+          </Panel>
         </div>
+      </div>
+
+      <div className="ps__feedwrap">
+        <EventFeed events={liveFeed.events} maxHeight={320}
+          title="Reactive Network · live on-chain feed"
+          emptyLabel="No on-chain events yet. Run the live-market demo (01_LiveMarket) to populate the feed — it streams here as the hook emits them."
+          explorerBase={EXPLORER} />
       </div>
     </div>
   );

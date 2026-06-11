@@ -26,7 +26,7 @@ export function useShell(): ShellValue {
 
 /**
  * App-wide shell: owns the shared live-core state that both the sidebar glyph and the ambient
- * screens (Landing, Observatory) read, and renders the navigation chrome around every route.
+ * screens (Landing, Portfolio) read, and renders the navigation chrome around every route.
  */
 export function ShellProvider({ children }: { children: React.ReactNode }) {
   const live = useHookState(); // real hook NAVs (30s refetch) with the verified-snapshot fallback
@@ -44,11 +44,11 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') window.scrollTo({ top: 0 });
   }, [router]);
 
-  // Idle waterfall sweep on the ambient pages only (Thesis + Observatory), mirroring the old page loop.
+  // Idle waterfall sweep on the pages with the live capital-structure viz (Thesis + Portfolio).
   React.useEffect(() => {
     let t: ReturnType<typeof setTimeout>;
     const loop = () => {
-      if (!document.hidden && (pathname === '/' || pathname === '/observatory')) runSettlement();
+      if (!document.hidden && (pathname === '/' || pathname === '/portfolio')) runSettlement();
       t = setTimeout(loop, 9000);
     };
     t = setTimeout(loop, 5000);

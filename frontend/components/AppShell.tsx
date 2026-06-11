@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAccount, useDisconnect } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
-import { Layers, ArrowDownToLine, ArrowUpFromLine, Wallet, RadioTower, SlidersHorizontal } from 'lucide-react';
+import { Layers, ArrowDownToLine, ArrowUpFromLine, Wallet, SlidersHorizontal } from 'lucide-react';
 import { StrataCore } from '@/components/StrataCore';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
@@ -17,7 +17,6 @@ const NAV = [
   { href: '/deposit', label: 'Deposit', Icon: ArrowDownToLine },
   { href: '/withdraw', label: 'Withdraw', Icon: ArrowUpFromLine },
   { href: '/portfolio', label: 'Portfolio', Icon: Wallet },
-  { href: '/observatory', label: 'Observatory', Icon: RadioTower },
   { href: '/simulator', label: 'Simulator', Icon: SlidersHorizontal },
 ];
 
