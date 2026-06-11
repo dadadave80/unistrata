@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { parseUnits, formatUnits, maxUint256 } from 'viem';
-import { useAccount, useReadContracts, useWriteContract, useSignTypedData, usePublicClient } from 'wagmi';
+import { useAccount, useReadContracts, useWriteContract, useSignTypedData, usePublicClient, useChainId, useSwitchChain } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
 import { Button } from '@/components/Button';
 import { Badge } from '@/components/Badge';
@@ -63,6 +63,13 @@ const depositCSS = `
 @media (max-width: 1000px){ .dp__grid{ grid-template-columns: 1fr; } .dp__ticket{ position: static; } }
 `;
 
+// Keep only digits and a single decimal point so the value is always a clean parseUnits string.
+function sanitizeDecimal(v: string): string {
+  const c = v.replace(/[^0-9.]/g, '');
+  const dot = c.indexOf('.');
+  return dot === -1 ? c : c.slice(0, dot + 1) + c.slice(dot + 1).replace(/\./g, '');
+}
+
 export function Deposit() {
   const { open } = useAppKit();
   const { address, isConnected } = useAccount();
@@ -70,7 +77,10 @@ export function Deposit() {
   const { signTypedDataAsync } = useSignTypedData();
 
   const [tranche, setTranche] = React.useState<'senior' | 'junior'>('senior');
-  const [amount, setAmount] = React.useState(2000);
+  // Keep the entered amount as a sanitized decimal STRING (single dot) — fed straight to parseUnits, never
+  // round-tripped through JS Number, which loses precision on large/edge inputs (review #6).
+  const [amountStr, setAmountStr] = React.useState('2000');
+  const amount = Number(amountStr) || 0; // numeric form for UI math (shares estimate, chips, balance gate)
   const [depTx, setDepTx] = React.useState<string | null>(null);
   const [depBusy, setDepBusy] = React.useState<false | 'approve' | 'sign' | 'deposit'>(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -85,6 +95,8 @@ export function Deposit() {
   const livePrice = usePoolPrice() ?? 3000;
   const live = useHookState(); // live tranche NAVs (bedrockNav = senior claim, sedimentNav = junior residual)
   const client = usePublicClient({ chainId: CHAIN_ID });
+  const walletChainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
 
   // live balances + current Permit2 allowances of the connected wallet (allowance is to Permit2, never the hook)
   const ZERO = '0x0000000000000000000000000000000000000000';
@@ -146,10 +158,13 @@ export function Deposit() {
     if (!address) { open(); return; }
     setErr(null); setDepTx(null);
     try {
+      // Ensure the wallet is on Unichain Sepolia before signing — the Permit2 EIP-712 domain is pinned to
+      // CHAIN_ID, so signing on another chain would produce a mismatched signature (review #4).
+      if (walletChainId !== CHAIN_ID) await switchChainAsync({ chainId: CHAIN_ID });
       // The "Amount in" field is denominated in tUSDC; pair it with ~balanced tWETH at the LIVE pool price.
       // Map each leg to token0/token1 BY IDENTITY (the pool sorts tokens by address) so the Permit2 batch is
       // always ordered [currency0, currency1] — a future re-deploy that reorders tokens can't silently break it.
-      const usdcAmount = parseUnits(String(amount), 6); // tUSDC, 6 dec
+      const usdcAmount = parseUnits(amountStr.replace(/\.$/, '') || '0', 6); // tUSDC, 6 dec (clean string, no Number round-trip)
       const wethAmount = parseUnits((amount / livePrice).toFixed(18), 18); // tWETH, 18 dec (live-priced)
       const amount0Max = (TOKEN0 as string) === TOKEN_USDC ? usdcAmount : wethAmount;
       const amount1Max = (TOKEN1 as string) === TOKEN_USDC ? usdcAmount : wethAmount;
@@ -179,13 +194,17 @@ export function Deposit() {
         domain: p.domain, types: p.types, primaryType: p.primaryType, message: p.message,
       });
 
+      // Slippage bound: revert if the live-priced mint would fall >3% below the displayed estimate
+      // (guards against price drift / a sandwich between sign and execution). 0 if the estimate is unknown.
+      const minSharesOut = shares > 0 ? parseUnits((shares * 0.97).toFixed(18), 18) : 0n;
+
       // The hook pulls the maxes via Permit2, deposits, mints shares to us, and refunds the unused remainder.
       setDepBusy('deposit');
       const tx = await writeContractAsync({
         address: HOOK_ADDRESS, abi: hookAbi, functionName: 'depositWithPermit',
         // viem can't infer the nested tuple[] component type (collapses `permitted` to never[]); the
         // runtime struct shape is correct and verified by the on-chain depositWithPermit test.
-        args: [isSenior, p.permitStruct as never, signature], chainId: CHAIN_ID,
+        args: [isSenior, p.permitStruct as never, signature, minSharesOut], chainId: CHAIN_ID,
       });
       setDepTx(tx);
       await refetchBals();
@@ -243,14 +262,8 @@ export function Deposit() {
 
       <div className="dp__grid">
         <div className="dp__cards">
-          <TrancheCard tranche="senior" apr="7.2%" selected={isSenior} onSelect={() => setTranche('senior')}
-            capacityPct={47} capacityLabel="Bedrock capacity filled"
-            rows={[
-              { label: 'Coverage ratio', value: '$13.5K Sediment below you', tone: 'senior' },
-              { label: 'NAV per share', value: `${beNavPerShare.toFixed(4)} (protected)` },
-              { label: 'Coupon priced from', value: 'realized σ²' },
-            ]}
-            footnote="Protected from impermanent loss until the Sediment layer is exhausted. Coupon repriced every epoch." />
+          {/* Sediment (junior) sits ON TOP of Bedrock in the strata — it absorbs the first loss, so it
+              leads here, mirroring the capital-structure visual. */}
           <TrancheCard tranche="junior" apr="absorbs IL" aprLabel="keeps the fees" selected={!isSenior} onSelect={() => setTranche('junior')}
             capacityPct={53} capacityLabel="Sediment capacity filled"
             rows={[
@@ -259,6 +272,14 @@ export function Deposit() {
               { label: 'NAV per share', value: `${seNavPerShare.toFixed(4)} · floats` },
             ]}
             footnote="You absorb losses first. In exchange you keep all excess fees and the volatility risk premium." />
+          <TrancheCard tranche="senior" apr="7.2%" selected={isSenior} onSelect={() => setTranche('senior')}
+            capacityPct={47} capacityLabel="Bedrock capacity filled"
+            rows={[
+              { label: 'Coverage ratio', value: '$13.5K Sediment below you', tone: 'senior' },
+              { label: 'NAV per share', value: `${beNavPerShare.toFixed(4)} (protected)` },
+              { label: 'Coupon priced from', value: 'realized σ²' },
+            ]}
+            footnote="Protected from impermanent loss until the Sediment layer is exhausted. Coupon repriced every epoch." />
         </div>
 
         <div className="dp__ticket">
@@ -267,13 +288,13 @@ export function Deposit() {
               <div className="dp__field">
                 <span className="dp__fieldlabel">Amount in</span>
                 <div className="dp__input">
-                  <input type="text" inputMode="decimal" value={amount.toLocaleString('en-US')}
-                    onChange={(e) => { const v = Number(e.target.value.replace(/[^0-9.]/g, '')); setAmount(Number.isFinite(v) ? v : 0); }} />
+                  <input type="text" inputMode="decimal" value={amountStr}
+                    onChange={(e) => setAmountStr(sanitizeDecimal(e.target.value))} />
                   <span className="tok">tUSDC</span>
                 </div>
                 <div className="dp__chips">
                   {[500, 1000, 2000, 5000].map((v) => (
-                    <button key={v} className="dp__chip" onClick={() => setAmount(v)}>{fmtUsd(v, 0)}</button>
+                    <button key={v} className="dp__chip" onClick={() => setAmountStr(String(v))}>{fmtUsd(v, 0)}</button>
                   ))}
                 </div>
               </div>
@@ -282,7 +303,7 @@ export function Deposit() {
                 <div className="dp__line dp__line--em">
                   <span className="k">Shares out (est.)</span>
                   <span className="v" style={{ color: isSenior ? 'var(--senior-200)' : 'var(--junior-200)' }}>
-                    <NumberTicker value={shares} decimals={2} /> {isSenior ? 'beWETH' : 'seWETH'}
+                    <NumberTicker value={shares} decimals={2} /> {isSenior ? 'BEDR' : 'SEDI'}
                   </span>
                 </div>
                 <div className="dp__line"><span className="k">Pairs with</span><span className="v">≈ {wethPaired.toFixed(4)} tWETH @ {fmtUsd(livePrice, 0)}</span></div>

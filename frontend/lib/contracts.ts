@@ -17,8 +17,8 @@ export const TOKEN0 = TOKEN_WETH; // currency0 (WETH, 18 dec)
 export const TOKEN1 = TOKEN_USDC; // currency1 (USDC, 6 dec)
 
 // Tranche share tokens (StratumToken, ERC20) — deployed by the hook constructor. Verified on-chain.
-export const BEDROCK_TOKEN = '0x3848b7ab1cb7d33212d28b6cf6eac9f9d65b0b8c' as const; // beWETH (senior shares)
-export const SEDIMENT_TOKEN = '0x953636fc36a204dc2bb775fa4ca0195bf748bd0a' as const; // seWETH (junior shares)
+export const BEDROCK_TOKEN = '0x3848b7ab1cb7d33212d28b6cf6eac9f9d65b0b8c' as const; // BEDR (senior shares)
+export const SEDIMENT_TOKEN = '0x953636fc36a204dc2bb775fa4ca0195bf748bd0a' as const; // SEDI (junior shares)
 
 // Minimal UnistrataHook ABI — the reads the UI needs + the deposit write.
 export const hookAbi = [
@@ -45,7 +45,8 @@ export const hookAbi = [
     outputs: [{ name: 'shares', type: 'uint256' }],
   },
   {
-    // Permit2 path — caller signs a batch transfer; the hook pulls exact amounts, deposits, refunds the rest.
+    // Permit2 path with a slippage bound — the hook pulls exact amounts, deposits, refunds the rest, and
+    // reverts if the minted shares would be below minSharesOut.
     type: 'function', name: 'depositWithPermit', stateMutability: 'nonpayable',
     inputs: [
       { name: 'isBedrock', type: 'bool' },
@@ -64,6 +65,7 @@ export const hookAbi = [
         ],
       },
       { name: 'signature', type: 'bytes' },
+      { name: 'minSharesOut', type: 'uint256' },
     ],
     outputs: [{ name: 'shares', type: 'uint256' }],
   },

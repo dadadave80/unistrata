@@ -88,7 +88,7 @@ export function Withdraw() {
 
   const bal = isSenior ? beBal : seBal;
   const allow = isSenior ? allowBe : allowSe;
-  const sym = isSenior ? 'beWETH' : 'seWETH';
+  const sym = isSenior ? 'BEDR' : 'SEDI';
 
   const { requests, refetch: refetchReqs } = useWithdrawRequests(address as `0x${string}` | undefined, epoch);
 
@@ -157,7 +157,7 @@ export function Withdraw() {
         <div>
           <Panel eyebrow="Your tranche positions" title="Queued withdrawals">
             {!isConnected ? (
-              <div className="wd__empty">Connect a wallet to see your beWETH / seWETH positions and any queued withdrawals.</div>
+              <div className="wd__empty">Connect a wallet to see your BEDR / SEDI positions and any queued withdrawals.</div>
             ) : requests.length === 0 ? (
               <div className="wd__empty">No queued withdrawals. Request one on the right — it appears here with its unlock epoch, then becomes claimable once the epoch settles.</div>
             ) : (
@@ -166,7 +166,7 @@ export function Withdraw() {
                   <div className="wd__req" key={r.id}>
                     <span className={`mk ${r.isBedrock ? 'mk--s' : 'mk--j'}`} />
                     <div className="wd__reqmeta">
-                      <div className="wd__reqttl">{r.shares.toFixed(2)} {r.isBedrock ? 'beWETH' : 'seWETH'}</div>
+                      <div className="wd__reqttl">{r.shares.toFixed(2)} {r.isBedrock ? 'BEDR' : 'SEDI'}</div>
                       <div className="wd__reqsub">
                         {r.claimed ? 'claimed' : r.eligible ? 'claimable now' : `locked until epoch ${r.eligibleEpoch} (now ${epoch})`}
                       </div>

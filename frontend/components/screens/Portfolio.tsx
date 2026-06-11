@@ -128,8 +128,8 @@ export function Portfolio() {
           </div>
           <div className="ps__navrow" style={{ marginTop: 1 }}>
             <div className="ps__navcell"><Stat label="Realized variance" size="sm" value={<NumberTicker value={live.varAcc} />} unit="varAcc" delta={volRatio >= 1 ? 'spike trigger crossed' : `${(volRatio * 100).toFixed(0)}% of trigger`} deltaDir={volRatio >= 1 ? 'up' : undefined} /></div>
-            <div className="ps__navcell"><Stat label="Bedrock outstanding" size="sm" value={<NumberTicker value={beSupply} decimals={0} />} unit="beWETH" /></div>
-            <div className="ps__navcell"><Stat label="Sediment outstanding" size="sm" value={<NumberTicker value={seSupply} decimals={0} />} unit="seWETH" /></div>
+            <div className="ps__navcell"><Stat label="Bedrock outstanding" size="sm" value={<NumberTicker value={beSupply} decimals={0} />} unit="BEDR" /></div>
+            <div className="ps__navcell"><Stat label="Sediment outstanding" size="sm" value={<NumberTicker value={seSupply} decimals={0} />} unit="SEDI" /></div>
           </div>
         </Panel>
 
@@ -138,7 +138,7 @@ export function Portfolio() {
           <Panel padded eyebrow="Your position" title="Holdings, valued at NAV">
             {!isConnected ? (
               <div>
-                <p className="ps__empty">Connect a wallet to see your beWETH / seWETH holdings, their current value, and your share of the pool.</p>
+                <p className="ps__empty">Connect a wallet to see your BEDR / SEDI holdings, their current value, and your share of the pool.</p>
                 <Button variant="primary" size="lg" fullWidth onClick={() => open()}><Wallet size={16} /> Connect wallet</Button>
               </div>
             ) : !hasPosition ? (
@@ -170,7 +170,7 @@ export function Portfolio() {
                   <div className="ps__row">
                     <ShieldCheck className="be" />
                     <div>
-                      <div className="ps__rowttl">Bedrock · beWETH</div>
+                      <div className="ps__rowttl">Bedrock · BEDR</div>
                       <div className="ps__rowsub">{beBal.toFixed(2)} shares · senior, protected</div>
                     </div>
                     <div>
@@ -181,7 +181,7 @@ export function Portfolio() {
                   <div className="ps__row">
                     <Flame className="se" />
                     <div>
-                      <div className="ps__rowttl">Sediment · seWETH</div>
+                      <div className="ps__rowttl">Sediment · SEDI</div>
                       <div className="ps__rowsub">{seBal.toFixed(2)} shares · junior, first-loss + fees</div>
                     </div>
                     <div>
