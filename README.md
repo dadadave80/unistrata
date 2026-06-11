@@ -4,6 +4,8 @@
 
 > LPs are forced sellers of volatility with no buyer — impermanent loss is just the bill. **Unistrata builds the buyer.**
 
+**Not an oracle integration or a vault wrapper** — the first v4 hook that measures its *own* realized variance from the pool's tick path and uses it to price a senior fixed-income tranche, with settlement triggered cross-chain by a Reactive Smart Contract and no keeper we run.
+
 Unistrata is a Uniswap v4 hook that splits a single pool's impermanent loss into two tranches, the way a bond is split into senior and junior:
 
 - **Bedrock** (senior) — protected principal, earns a **fixed coupon priced from the pool's own measured volatility**. The floor.
@@ -11,13 +13,15 @@ Unistrata is a Uniswap v4 hook that splits a single pool's impermanent loss into
 
 Each epoch the structure settles through a seniority waterfall — Bedrock is paid its coupon first, Sediment takes the residual. Settlement is driven **cross-chain by a Reactive Network smart contract**: no keeper, no off-chain bot, and **no external price oracle** — the coupon is priced from realized variance the hook measures off its own tick path.
 
-**The money shot (replayed on-chain, `sim/out/crash.json`):** tWETH falls $2,891 → $1,674 (−42%) and recovers to $2,025. Vanilla LP bleeds below HODL to impermanent loss; **Bedrock's NAV/share holds flat on its coupon line**; Sediment absorbs the drawdown, then keeps the fees on the recovery.
+**The money shot (replayed on-chain, `sim/out/crash.json`):** tWETH falls $2,891 → $1,674 (−42%) and recovers to $2,025. Vanilla LP bleeds below HODL to impermanent loss; **Bedrock's NAV/share holds flat — principal fully protected through the drawdown**; Sediment absorbs the loss first, then keeps the fees on the recovery.
 
-| | |
+![Bedrock NAV/share holds flat while vanilla LP bleeds below HODL to impermanent loss — sim/out/crash.json](assets/money-shot.png)
+
+| Artifact | Detail |
 |---|---|
 | **Live hook** | [`0xfc4f1c6aecad1507dd0ec4af4d72f62378c25840`](https://sepolia.uniscan.xyz/address/0xfc4f1c6aecad1507dd0ec4af4d72f62378c25840) · Unichain Sepolia (1301) |
-| **Reactive RSC** | `0x3cad51414bbd94e19c47ef47fe2d65f89e467eea` · Reactive Lasna (5318007) |
-| **Tests** | 131 passing (Foundry, TDD) incl. stateful invariants |
+| **Reactive RSC** | [`0x3cad51414bbd94e19c47ef47fe2d65f89e467eea`](https://lasna.reactscan.net/address/0x3cad51414bbd94e19c47ef47fe2d65f89e467eea) · Reactive Lasna (5318007) |
+| **Tests** | 131 passing (Foundry, TDD) incl. stateful invariants — `forge test` |
 | **Cross-chain loop** | verified on-chain — spike → `emergencySettle` → `epochId 0→1` ([trail below](#verified-cross-chain-trail)) |
 | **Frontend** | `frontend/` — Next.js + Reown AppKit + wagmi/viem, deposit via Permit2, live Reactive feed |
 
@@ -35,26 +39,28 @@ The hook measures realized variance straight off the pool's tick path. `afterSwa
 - **Capped squared tick-delta.** On a new block it computes the signed delta `d = currentTick − lastObservedTick`, squares it (sign drops out), and clamps the per-block contribution at `dCap²` before adding: `newVarAcc = varAcc + min(d², dCap²)`. `dCap` is deployed at 1000, so one block contributes at most `1000² = 1e6`. This bounds the accumulator (invariant 5) and caps the influence of any single jump.
 - Only on a counted observation does the hook update `(lastObservedBlock, lastObservedTick, varAcc)` and emit `UnistrataObservation(blockTickDelta, varAcc)` — the event the Reactive circuit breaker subscribes to (the deployed RSC trips at a `varAcc` spike of 4,000,000).
 
-At settlement the per-epoch delta `varAcc − varAccAtEpochStart` is annualized: `σ² = varAcc · ln(1.0001)² · year / Δt`, where `ln(1.0001)² = LN_BASE_SQ_WAD = 9_999_000_092` turns squared *ticks* into squared *log-returns*. It rounds **up** — a larger measured σ² means a larger IL reserve and thus a lower bedrock coupon, favoring the underwriter and protocol solvency — and feeds an EWMA `sigma2Ewma`.
+At settlement the per-epoch delta `varAcc − varAccAtEpochStart` is annualized: `σ² = varAcc · ln(1.0001)² · year / Δt`, where `ln(1.0001)² = LN_BASE_SQ_WAD = 9_999_000_092` turns squared *ticks* into squared *log-returns*. It rounds **up** — a larger measured σ² means a larger IL reserve and thus a lower bedrock coupon, favoring the underwriter and protocol solvency — and feeds an exponentially-weighted moving average (**EWMA**) `sigma2Ewma` that smooths it epoch-to-epoch.
 
 ### 2. The variance-priced Bedrock coupon
 
 Each epoch's fixed coupon `bedrockRate` is set in `_rollEpoch` from two EWMAs — realized variance `sigma2Ewma` and the annualized fee yield `feeYieldEwma` — via `WaterfallLib.couponRate`:
 
 ```
-reserve = ceil(λ_risk · σ²_ewma / 8)        // IL reserve — the σ²/8 actuarial term
+reserve = ceil(λ_risk · σ²_ewma / 8)        // IL reserve — σ²/8 (all terms WAD: ceil(λ·σ²/(8·WAD)))
 net     = max(feeYieldEwma − reserve, 0)      // saturating subtraction
 r_epoch = clamp(net, rMin, rMax)
 ```
 
-The **`σ²/8`** term is the actuarial heart: impermanent loss / loss-versus-rebalancing for a full-range LP scales like `σ²/8` per unit time — the cost of the short-gamma payoff a passive LP is implicitly selling. Bedrock is the *senior, protected* tranche, so its coupon is the fee yield **minus** the price of that volatility insurance, marked up by the risk loading `lambdaRisk` (deployed 1.25e18 → a 25% safety margin) and rounded up. Economically the coupon is a half-straddle priced off variance: Bedrock collects the floor, Sediment is paid (in retained excess fees) to underwrite the gamma. The result is clamped to `[rMin, rMax]` (deployed `rMax = 50% APR`); the first epoch has no history, so it floors at `rMin`.
+The **`σ²/8`** term is the actuarial heart: a full-range LP's impermanent loss — *loss-versus-rebalancing* (LVR), the cost of the short-gamma payoff it implicitly sells — scales like `σ²/8` per unit time ([Milionis–Moallemi–Roughgarden–Zhang, 2022](https://arxiv.org/abs/2208.06046)). Bedrock is the *senior, protected* tranche, so its coupon is the fee yield **minus** the price of that volatility insurance (the IL reserve), marked up by the risk loading `lambdaRisk` (deployed 1.25e18 → a 25% safety margin) and rounded up; Sediment is paid, in retained excess fees, to underwrite it. The result is clamped to `[rMin, rMax]` (deployed `rMin = 0`, `rMax = 50% APR`).
+
+> **Honest caveat on the coupon.** In *every* demonstrated scenario — the live epoch 0→1 and all three `sim/out` replays — measured σ² is high relative to fee yield (the demo deliberately spikes variance with synthetic swaps, not a calibrated steady-state vol), so the IL reserve saturates the fee yield and the priced coupon **floors at `rMin = 0`**. Bedrock's flat NAV/share is therefore *principal protection* (the waterfall pays Bedrock its target `sTarget = sPrev·(1 + 0)` before Sediment) — not a positive paying coupon. The variance-pricing mechanism is implemented and invariant-tested; a *paying* coupon simply requires calmer realized vol than the demo forces, so fee yield exceeds the IL reserve.
 
 ### 3. The epoch waterfall at settlement
 
 Settlement (`_settle`) can be triggered three ways: the Reactive heartbeat `settleEpoch(rvm_id)` (callback-only, after the epoch elapses), the Reactive volatility circuit breaker `emergencySettle(rvm_id)` (callback-only, **no time gate** — settles early to lock in the coupon before further drawdown), or a permissionless `settleEpoch()` fallback after `epochDuration + gracePeriod` so a missed callback can't brick the vault.
 
-- **Price guard first.** `_settle` rejects settlement if the live tick deviates from the hook's own last sampled tick by more than `guardBand` (`SettlementPriceOutOfBand`). This stops settlement at a manipulated spot price.
-- **Mark to market.** The hook pokes the position to realize accrued fees into idle balance, then `totalAssets()` values position + idle in the numéraire via `NavLib.valueInNumeraire` (decimals normalized to WAD). This yields `A` and `feesValue`.
+- **Price guard first.** `_settle` rejects settlement if the live tick deviates from the hook's own last sampled tick by more than `guardBand` (`SettlementPriceOutOfBand`; deployed `guardBand = 5000` ticks, ≈ +65%/−39%). Settlement marks NAV to the pool's *own* live spot price, so this is a **coarse guard against settling mid-manipulation-spike — not a manipulation-proof oracle** (the sampled tick is itself swap-derived).
+- **Mark to market.** The hook pokes the position to realize accrued fees into idle balance, then `totalAssets()` values position + idle in the *numéraire* (the unit of account — here tUSDC) via `NavLib.valueInNumeraire` (decimals normalized to WAD). This yields `A` and `feesValue`.
 - **Seniority waterfall.** `_settleWaterfall` computes the Bedrock target `sTarget = sPrev·(1 + r·Δt/year)` (accrual floored — coupon honesty, invariant 3), then `settle(A, sTarget)` does `sNew = min(A, sTarget); jNew = A − sNew`. **Bedrock is paid its coupon target first; Sediment absorbs the entire residual** — it takes the loss when `A < sTarget` and keeps all the excess when `A > sTarget`. `sNew + jNew == A` exactly (conservation, invariant 1).
 - **Impairment signals.** `BedrockImpaired` fires on a true principal loss (Sediment exhausted *and* Bedrock fell below where it started); `BedrockBelowCoupon` fires when Sediment is exhausted and Bedrock grew but missed its coupon (no principal loss). `_rollEpoch` then advances `epochId`, resets the variance baseline, re-prices the coupon, and emits `EpochSettled`.
 
@@ -62,7 +68,7 @@ Settlement (`_settle`) can be triggered three ways: the Reactive heartbeat `sett
 
 - **Queued, lockup'd exits.** `requestWithdraw(isBedrock, shares)` escrows the tranche tokens and records `eligibleEpoch = epochId + (isBedrock ? 1 : 2)`. Bedrock exits at the next settlement (+1); **Sediment is locked one epoch longer (+2)** so a junior holder cannot exit just before a volatility event it is being paid to absorb. `claim(id)` reverts until `epochId ≥ eligibleEpoch`, then pays a `value/totalAssets` slice of *all* hook assets and burns the escrowed shares — leaving remaining holders' NAV/share unchanged.
 - **Deposits & shares.** `deposit` adds full-range liquidity and mints shares at the tranche's current NAV/share; the first deposit carves `DEAD_SHARES = 1000` to `0xdead` as an inflation guard. Bedrock deposits enforce the attachment cap `bedrockNav/(bedrockNav+sedimentNav) ≤ thetaMax` (deployed 0.75) — Bedrock can't grow past 75% of the structure without Sediment to back it.
-- **Permit2 path.** `depositWithPermit` takes a signed `PermitBatchTransferFrom`, pulls the exact maxes via the canonical Permit2 (`0x0000…78BA3`), adds liquidity with the hook as payer, mints shares, and **refunds the unused remainder** — removing the standing unbounded-approval footgun (no resting hook allowance). Permit2 is verified live on Unichain Sepolia.
+- **Permit2 path.** `depositWithPermit` takes a signed `PermitBatchTransferFrom`, pulls the exact maxes via the canonical Permit2 (`0x0000…78BA3`), adds liquidity with the hook as payer, mints shares, and **refunds the unused remainder**. The hook itself never holds an ERC-20 allowance: the only standing approval is the one-time, audited canonical Permit2 (the industry-standard model), and each deposit is a fresh signed, exact-amount, deadline-bounded transfer. Permit2 is verified live on Unichain Sepolia.
 
 ---
 
@@ -142,7 +148,7 @@ flowchart TB
 
 ## Live deployment
 
-Deployed, subscribed, funded, and **demonstrated end-to-end** on testnet. Addresses are persisted in `.env`; receipts under `broadcast/`. v4 sorts tokens by address, so on this stack **token0 = tWETH (18), token1 = tUSDC (6)**.
+Deployed, subscribed, funded, and **demonstrated end-to-end** on testnet via the volatility circuit breaker (`emergencySettle`); the CRON heartbeat (`settleEpoch`) is deployed + subscribed, its tx trail pending (~120 ticks ≈ 24h). Addresses are persisted in `.env`; receipts under `broadcast/`. v4 sorts tokens by address, so on this stack **token0 = tWETH (18), token1 = tUSDC (6)**.
 
 | Contract | Chain | Address |
 |---|---|---|
@@ -155,15 +161,15 @@ Deployed, subscribed, funded, and **demonstrated end-to-end** on testnet. Addres
 
 ### Verified cross-chain trail
 
-The "wow moment" — a real volatility spike, observed on-chain, routed cross-chain by the RSC, and settled back on the origin pool with **zero off-chain infrastructure**:
+The "wow moment" — a real volatility spike, observed on-chain, routed cross-chain by the RSC, and settled back on the origin pool with **no keeper or bot of our own** (the RSC executes on-chain on Reactive; its relayers deliver the callback):
 
 | Hop | Chain | Tx | What |
 |---|---|---|---|
-| 0. Deposit | Unichain 1301 | `0xe34f6331…5eb1` (Bedrock), `0x256b1a8d…de2d` (Sediment) | deposit into both tranches (block 54296142) |
+| 0. Deposit | Unichain 1301 | [`0xe34f63…5eb1`](https://sepolia.uniscan.xyz/tx/0xe34f6331109251e9f32c4e2996a46c634b8596f52da43ec79f19cc11f9465eb1) (Bedrock), [`0x256b1a…de2d`](https://sepolia.uniscan.xyz/tx/0x256b1a8d87848e2f016aabf86dc7450dcaa4e84aca6f864cfc76650f8fdbde2d) (Sediment) | deposit into both tranches (block 54296142) |
 | 1. Build variance | Unichain 1301 | 6 `--slow` swaps, blocks 54296191–197 | `varAcc` climbs 1,000,000 → 6,000,000 |
-| 1b. Threshold crossing | Unichain 1301 | `0xf096b8…e52d` (block 54296197) | `UnistrataObservation` past the 4,000,000 trigger |
-| 2. RSC reacts | Lasna 5318007 | RSC `0x3cad51…` | `react()` → `Callback(emergencySettle)` |
-| **3. Callback lands** | Unichain 1301 | **`0x006a1a…5cd3`** (block 54296205) | `emergencySettle` → `EmergencySettled` + `EpochSettled`, `epochId 0→1` |
+| **1b. Trigger crossed** | Unichain 1301 | [`0xe241fd…ce04b`](https://sepolia.uniscan.xyz/tx/0xe241fde6b6fc0abc4bdf9004a5ee14e89990567f1256bf6ae2304e32003ce04b) (block 54296194) | `UnistrataObservation` first reaches `varAcc = 4,000,000` — the RSC's spike threshold |
+| 2. RSC reacts | Lasna 5318007 | RSC [`0x3cad51…`](https://lasna.reactscan.net/address/0x3cad51414bbd94e19c47ef47fe2d65f89e467eea) | `react()` → `Callback(emergencySettle)` |
+| **3. Callback lands** | Unichain 1301 | [**`0x006a1a…5cd3`**](https://sepolia.uniscan.xyz/tx/0x006a1a8c805304a481ed47055c5ee93f2e9ee313e4ed17d6ff0cff48b54f5cd3) (block 54296205) | `emergencySettle` → `EmergencySettled` + `EpochSettled`, `epochId 0→1` |
 
 The Observatory screen reads this exact trail **live** from the chain via `getLogs`.
 
@@ -174,8 +180,13 @@ The Observatory screen reads this exact trail **live** from the chain via `getLo
 ### Quickstart
 
 ```bash
+git clone <repo> && cd uhi9
+foundryup                    # forge 1.7.x
+forge install                # submodules: forge-std, v4-core/periphery, uniswap-hooks, reactive-lib, permit2
+cp .env.example .env         # RPC URLs + keystore account names (only needed for the deploy scripts)
+
 forge build      # solc 0.8.34, optimizer 200 runs (hook + Permit2 path must fit the 24KB limit)
-forge test       # 131 tests, 19 suites — all pass
+forge test       # 131 tests, 19 suites — all pass (incl. the v4-template baseline suites)
 ```
 
 Toolchain is pinned in `foundry.toml`: `evm_version = "osaka"` (cosmetic — bytecode is byte-identical to cancun), `bytecode_hash = "none"` + `cbor_metadata = false` for deterministic CREATE2 bytecode, `ffi = true` (the `.env`-writing scripts need it). The invariant profile runs `256 runs × depth 30`; CI can crank it via `FOUNDRY_INVARIANT_RUNS=10000`.
@@ -194,7 +205,7 @@ All scripts live in `script/unistrata/`. Every broadcasting run uses a keystore 
 | # | script | what it does | target |
 |---|---|---|---|
 | 00 | `00_DeployMockTokens` | Deploys demo tokens tWETH (18) + tUSDC (6); writes `TOKEN_WETH` / `TOKEN_USDC`. | `unichain_sep` |
-| 01 | `01_DeployUnistrata` | HookMiner-mines the salt for the `afterInitialize\|afterSwap\|beforeAddLiquidity` flags, CREATE2-deploys the hook + PoolManager + callback proxy, then `initialize`s the pool. Decimals/ordering/numéraire derived from the real token addresses. Writes `UNISTRATA_HOOK`. | `unichain_sep` |
+| 01 | `01_DeployUnistrata` | HookMiner-mines the salt for the `afterInitialize\|afterSwap\|beforeAddLiquidity` flags, CREATE2-deploys **the hook** against the canonical v4 PoolManager + the existing Reactive callback proxy, then `initialize`s the pool. Decimals/ordering/numéraire derived from the real token addresses. Writes `UNISTRATA_HOOK`. | `unichain_sep` |
 | 02 | `02_DeployReactive` | Deploys the RSC; its constructor registers both subscriptions (CRON + `UnistrataObservation`), so deploying **is** subscribing. `TICKS_PER_EPOCH=120`, `SPIKE_THRESHOLD=4,000,000`, `CALLBACK_GAS_LIMIT=1,000,000`. Writes `UNISTRATA_REACTIVE`. | `reactive_lasna` |
 | 03 | `03_FundAndSubscribe` | Funds the hook (via the proxy's `depositTo`) on the origin chain and the RSC on Lasna — both chains in one invocation. | both |
 | 04 | `04_DepositDemo` | Mints (permissionless `DemoERC20`) + approves, deposits into both tranches — **Sediment first**, then Bedrock, so the attachment cap holds. | `unichain_sep` |
@@ -208,6 +219,7 @@ Once cumulative `varAcc ≥ 4,000,000`, the RSC's `react()` fires `emergencySett
 - **Conservation (1):** `bedrockNav + sedimentNav ≈ totalAssets` post-settle (within dust).
 - **Seniority (2):** Bedrock NAV/share is non-decreasing while Sediment retains coverage — Sediment is first-loss.
 - **Coupon honesty (3):** `rMin ≤ bedrockRate() ≤ rMax` at all times.
+- **Share fairness (4):** a deposit followed by a next-epoch withdrawal never extracts more than deposited + accrued tranche return — covered by the deposit/withdraw unit suites.
 - **varAcc bound (5):** cumulative `varAcc ≤ (elapsed blocks)·dCap²`.
 - **Access control (6):** `settleEpoch(rvm_id)`/`emergencySettle(rvm_id)` are gated by `authorizedSenderOnly` **and** `rvmIdOnly`; the permissionless fallback only succeeds after epoch + grace.
 
@@ -234,7 +246,24 @@ bun install
 bun run dev      # http://localhost:3000   (bun run build for production)
 ```
 
-Env (`.env.example`): `NEXT_PUBLIC_REOWN_PROJECT_ID` (from dashboard.reown.com; wallet connect is off until set) and `NEXT_PUBLIC_UNICHAIN_RPC` (defaults to `https://sepolia.unichain.org`). All on-chain addresses are pinned in `lib/contracts.ts`.
+Env (`.env.example`): `NEXT_PUBLIC_REOWN_PROJECT_ID` (from dashboard.reown.com; wallet connect is off until set) and `NEXT_PUBLIC_UNICHAIN_RPC` (defaults to `https://sepolia.unichain.org`). All on-chain addresses are pinned in `lib/contracts.ts`. The in-app faucet mints test tWETH/tUSDC; you still need Unichain Sepolia ETH for gas.
+
+---
+
+## Security & trust assumptions
+
+Hackathon code — **not audited, testnet only, do not use with real funds.** The trust model:
+
+- **Settlement trigger.** The Reactive callback proxy (`0x9299…7FC4`) is the trusted party that delivers `settleEpoch`/`emergencySettle`; both are gated by `authorizedSenderOnly` (the proxy) **and** `rvmIdOnly` (the RSC's rvm-id, bound to the deploying EOA). A permissionless `settleEpoch()` fallback (after epoch + grace) means a missed callback can't brick the vault. The hook must stay gas-funded or the proxy blocklists it until its debt clears.
+- **No external oracle.** Variance and settlement price come from the pool's own tick path — no third-party price to manipulate, but the on-chain price *is* manipulable within a block. Mitigated (not eliminated) by the one-observation-per-block rule, the `dCap` per-block clamp, and the settlement `guardBand` (a coarse spot-deviation guard, not a TWAP).
+- **Inflation guard.** The first deposit burns `DEAD_SHARES = 1000` to `0xdead` — the standard first-depositor inflation defense.
+- **Reentrancy.** All PoolManager interaction goes through the `unlock` callback with exact `BalanceDelta` settlement; external mutators carry a transient-storage reentrancy guard.
+
+## Limitations & future work
+
+v1 scope decisions (intentional, not bugs): one pool per hook; all liquidity is hook-owned and full-range; withdrawals are epoch-locked (no instant exit); a single numéraire; and the demonstrated coupon floors at 0 under the demo's forced high variance (see the coupon caveat above).
+
+Roadmap: tradeable epoch-dated **variance tokens** (pay realized σ² — completes the variance-swap story), **instant withdrawals with a haircut**, a **dynamic swap fee** proportional to EWMA variance, and a **multi-pool factory** so any v4 pool can be given a capital structure.
 
 ---
 
@@ -291,4 +320,6 @@ REACTIVE.md  PROGRESS.md        # Reactive integration notes + build log
 
 ---
 
-Built on the [Uniswap v4 Hook Template](https://github.com/Uniswap/v4-template). See `UNISTRATA_BUILD_BRIEF.md` for the full product spec, `REACTIVE.md` for the Reactive Network integration, and `PROGRESS.md` for the build log.
+## License
+
+MIT — see [`LICENSE`](LICENSE). Built on the [Uniswap v4 Hook Template](https://github.com/Uniswap/v4-template) (also MIT). See `UNISTRATA_BUILD_BRIEF.md` for the full product spec, `REACTIVE.md` for the Reactive Network integration, and `PROGRESS.md` for the build log.
