@@ -11,6 +11,7 @@ import { EpochCountdown } from '@/components/EpochCountdown';
 import { EventFeed } from '@/components/EventFeed';
 import { NumberTicker } from '@/components/NumberTicker';
 import { useHookState } from '@/lib/useHookState';
+import { useHookEvents } from '@/lib/useHookEvents';
 import { TESTNET } from '@/lib/testnet';
 import { shortAddr } from '@/lib/format';
 
@@ -36,11 +37,15 @@ export function Observatory({ core, onSettle }: { core: { sweepKey: number }; on
   }, []);
 
   const live = useHookState(); // live UnistrataHook state (30s refetch) with snapshot fallback
+  const liveFeed = useHookEvents(); // live on-chain event log (20s rescan) with verified-trail fallback
   const sNav = live.bedrockNav;
   const jNav = live.sedimentNav;
   const scaleMax = live.tvl ? live.tvl * 1.3 : 30000;
   const volRatio = live.varAcc / live.spikeThreshold;
   const hookShort = shortAddr(TESTNET.addresses.hook);
+  const useLiveFeed = liveFeed.live && liveFeed.events.length > 0;
+  const feedEvents = useLiveFeed ? liveFeed.events : TESTNET.events;
+  const connected = live.live || liveFeed.live;
 
   return (
     <div>
@@ -49,7 +54,7 @@ export function Observatory({ core, onSettle }: { core: { sweepKey: number }; on
           <div className="ob__title">Observatory</div>
           <div className="ob__sub">{live.live ? 'live' : 'snapshot'} · tWETH/tUSDC · hook {hookShort} · Unichain Sepolia · measured from on-chain ticks, no external oracle</div>
         </div>
-        <Badge variant="live" live>Reactive Network connected</Badge>
+        <Badge variant={connected ? 'live' : 'neutral'} live={connected}>{connected ? 'Reactive Network connected' : 'RPC unreachable · snapshot'}</Badge>
       </div>
 
       <div className="ob__grid">
@@ -88,7 +93,9 @@ export function Observatory({ core, onSettle }: { core: { sweepKey: number }; on
       </div>
 
       <div className="ob__feedwrap">
-        <EventFeed events={TESTNET.events} maxHeight={320} />
+        <EventFeed events={feedEvents} maxHeight={320}
+          title={useLiveFeed ? 'Reactive Network · live on-chain feed' : 'Reactive Network · verified run (re-run 04–06 for live)'}
+          explorerBase="https://sepolia.uniscan.xyz" />
       </div>
     </div>
   );

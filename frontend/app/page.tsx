@@ -4,29 +4,22 @@ import React from 'react';
 import { AppShell } from '@/components/AppShell';
 import { Landing } from '@/components/screens/Landing';
 import { Deposit } from '@/components/screens/Deposit';
+import { Withdraw } from '@/components/screens/Withdraw';
 import { Observatory } from '@/components/screens/Observatory';
 import { Simulator } from '@/components/screens/Simulator';
-import { TESTNET } from '@/lib/testnet';
-
-// Seed the ambient "live core" from the real on-chain snapshot.
-const SENIOR0 = TESTNET.pool.bedrockNav;
-const JUNIOR0 = TESTNET.pool.sedimentNav;
-const SCALE_MAX = Math.round((SENIOR0 + JUNIOR0) * 1.3);
-
-type Core = { seniorNav: number; juniorNav: number; sweepKey: number };
+import { useHookState } from '@/lib/useHookState';
 
 export default function Page() {
   const [screen, setScreen] = React.useState('landing');
-  const [core, setCore] = React.useState<Core>({ seniorNav: SENIOR0, juniorNav: JUNIOR0, sweepKey: 0 });
+  const live = useHookState(); // real hook NAVs (30s refetch) with the verified-snapshot fallback
+  const [sweepKey, setSweepKey] = React.useState(0);
 
-  // a gentle decorative settlement so the Core reads as alive (Bedrock holds, Sediment accretes fees)
-  const runSettlement = React.useCallback(() => {
-    setCore((c) => ({
-      seniorNav: c.seniorNav,
-      juniorNav: c.juniorNav + 120 + Math.random() * 180,
-      sweepKey: c.sweepKey + 1,
-    }));
-  }, []);
+  // The ambient "live core" mirrors the real on-chain capital structure — no fabricated drift.
+  const core = { seniorNav: live.bedrockNav, juniorNav: live.sedimentNav, sweepKey };
+  const scaleMax = Math.round((live.bedrockNav + live.sedimentNav) * 1.3) || 30000;
+
+  // "Run a settlement" replays the decorative waterfall sweep over the real NAVs (no value mutation).
+  const runSettlement = React.useCallback(() => setSweepKey((k) => k + 1), []);
 
   React.useEffect(() => {
     let t: ReturnType<typeof setTimeout>;
@@ -42,12 +35,13 @@ export default function Page() {
 
   let view: React.ReactNode;
   if (screen === 'deposit') view = <Deposit />;
+  else if (screen === 'withdraw') view = <Withdraw />;
   else if (screen === 'observatory') view = <Observatory core={core} onSettle={runSettlement} />;
   else if (screen === 'simulator') view = <Simulator />;
   else view = <Landing core={core} onSettle={runSettlement} onNav={nav} />;
 
   return (
-    <AppShell screen={screen} onNav={nav} seniorNav={core.seniorNav} juniorNav={core.juniorNav} scaleMax={SCALE_MAX} sweepKey={core.sweepKey}>
+    <AppShell screen={screen} onNav={nav} seniorNav={core.seniorNav} juniorNav={core.juniorNav} scaleMax={scaleMax} sweepKey={core.sweepKey}>
       {view}
     </AppShell>
   );

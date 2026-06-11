@@ -4,7 +4,7 @@ import React from 'react';
 import Image from 'next/image';
 import { useAccount, useDisconnect } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
-import { Layers, ArrowDownToLine, RadioTower, SlidersHorizontal } from 'lucide-react';
+import { Layers, ArrowDownToLine, ArrowUpFromLine, RadioTower, SlidersHorizontal } from 'lucide-react';
 import { StrataCore } from '@/components/StrataCore';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
@@ -13,6 +13,7 @@ import { shortAddr } from '@/lib/format';
 const NAV = [
   { id: 'landing', label: 'Thesis', Icon: Layers },
   { id: 'deposit', label: 'Deposit', Icon: ArrowDownToLine },
+  { id: 'withdraw', label: 'Withdraw', Icon: ArrowUpFromLine },
   { id: 'observatory', label: 'Observatory', Icon: RadioTower },
   { id: 'simulator', label: 'Simulator', Icon: SlidersHorizontal },
 ];

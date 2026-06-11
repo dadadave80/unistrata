@@ -9,6 +9,7 @@ import { StrataCore } from '@/components/StrataCore';
 import { MoneyChart } from '@/components/MoneyChart';
 import { NumberTicker } from '@/components/NumberTicker';
 import { SCENARIOS } from '@/lib/sim-data';
+import { useHookState } from '@/lib/useHookState';
 
 const landingCSS = `
 .lg__hero { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: var(--space-10); align-items: center; margin-bottom: var(--space-11); }
@@ -41,6 +42,7 @@ export function Landing({ core, onSettle, onNav }: { core: Core; onSettle: () =>
   }, []);
   const crash = SCENARIOS.crash;
   const scaleMax = crash.scaleMax;
+  const live = useHookState(); // real hook state (30s refetch) with the verified-snapshot fallback
 
   return (
     <div>
@@ -73,11 +75,19 @@ export function Landing({ core, onSettle, onNav }: { core: Core; onSettle: () =>
         </div>
       </section>
 
+      <section style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' }}>
+        <Badge variant={live.live ? 'live' : 'neutral'} live={live.live} size="sm">
+          {live.live ? 'live · Unichain Sepolia' : 'verified snapshot'}
+        </Badge>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-tertiary)' }}>
+          hook reads, refreshed every 30s · no oracle
+        </span>
+      </section>
       <section className="lg__metrics">
-        <div className="lg__metric"><Stat label="Total value locked" size="md" value={<NumberTicker value={2_400_000} prefix="$" />} /></div>
-        <div className="lg__metric"><Stat label="Bedrock coupon" tone="senior" size="md" value={<NumberTicker value={7.2} decimals={1} suffix="%" />} unit="fixed APR" /></div>
-        <div className="lg__metric"><Stat label="Sediment trailing" tone="junior" size="md" value={<NumberTicker value={23.4} decimals={1} suffix="%" />} unit="levered APR" /></div>
-        <div className="lg__metric"><Stat label="Realized vol" size="md" value={<NumberTicker value={0.41} decimals={2} suffix="%" />} unit="σ² / day" delta="EWMA rising" deltaDir="up" /></div>
+        <div className="lg__metric"><Stat label="Total value locked" size="md" value={<NumberTicker value={live.tvl} prefix="$" />} unit={`epoch ${live.epoch}`} /></div>
+        <div className="lg__metric"><Stat label="Bedrock NAV" tone="senior" size="md" value={<NumberTicker value={live.bedrockNav} prefix="$" />} unit="protected first" /></div>
+        <div className="lg__metric"><Stat label="Sediment NAV" tone="junior" size="md" value={<NumberTicker value={live.sedimentNav} prefix="$" />} unit="first-loss + fees" /></div>
+        <div className="lg__metric"><Stat label="Realized variance" size="md" value={<NumberTicker value={live.varAcc} />} unit="varAcc, on-chain ticks" delta={live.varAcc >= live.spikeThreshold ? 'spike trigger crossed' : 'below trigger'} deltaDir={live.varAcc >= live.spikeThreshold ? 'up' : undefined} /></div>
       </section>
 
       <section>

@@ -1,5 +1,7 @@
-// REAL on-chain snapshot + verified spike event trail (Unichain Sepolia / Reactive Lasna).
-// Live reads (useHookState) override the numeric snapshot when the RPC is reachable.
+// Verified-run reference snapshot + spike event trail (Unichain Sepolia / Reactive Lasna).
+// These numbers/hashes are from a verified on-chain run of the (identical-logic) prior deploy and serve
+// ONLY as a fallback: live reads (useHookState) override them whenever the RPC is reachable, so against
+// the freshly redeployed hook the UI shows its true state (epoch 0 until the 04/05/06 demo is re-run).
 import { HOOK_ADDRESS, RSC_ADDRESS, TOKEN_WETH, TOKEN_USDC } from './contracts';
 
 export type FeedEvent = {
