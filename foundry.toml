@@ -1,14 +1,39 @@
 [profile.default]
-bytecode_hash = "none"
-evm_version = "cancun"
-ffi = true
-fs_permissions = [{access = "read-write", path = ".forge-snapshots/"}]
-libs = ["lib"]
-out = "out"
-solc_version = "0.8.30"
 src = "src"
+out = "out"
+libs = ["lib"]
+evm_version = "osaka"
+solc_version = "0.8.34"
+optimizer_runs = 444 # UnistrataHook (with the EIP-2612 deposit path) must fit the 24KB limit; higher runs bloat it past
 via_ir = false
+ffi = true
+fs_permissions = [
+    { access = "read-write", path = ".forge-snapshots/" },
+    { access = "read-write", path = "sim/" },
+    { access = "read-write", path = ".env" },
+]
+# Disable metadata hash for deterministic bytecode
+bytecode_hash = "none"
+cbor_metadata = false
+
+# CI selects this via FOUNDRY_PROFILE=ci (.github/workflows/ci.yml + the slither-action).
+# Inherits [profile.default] — identical osaka / 444-run / ≤24 KB build. Its existence is the
+# point: crytic-compile aborts on a missing profile ("selected profile `ci` does not exist").
+[profile.ci]
+
+[fmt]
+sort_imports = true
 
 [lint]
 exclude_lints = ["screaming-snake-case-immutable", "screaming-snake-case-const"]
 lint_on_build = false
+
+[invariant]
+runs = 256
+depth = 30
+fail_on_revert = false
+# CI can crank runs up (brief §6 targets ~10k): forge test --match-path 'test/invariant/*' with FOUNDRY_INVARIANT_RUNS=10000
+
+[rpc_endpoints]
+unichain_sep = "${UNICHAIN_SEPOLIA_URL}"
+reactive_lasna = "${REACTIVE_LASNA_URL}"

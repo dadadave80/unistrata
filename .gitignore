@@ -2,11 +2,12 @@
 cache/
 out/
 
-# Ignores development (and goerli) broadcast logs
-!/broadcast
-/broadcast/*/31337/
-/broadcast/*/5/
-/broadcast/**/dry-run/
+# ...but keep the simulation's money-chart outputs (the Phase-6 frontend's replay data)
+!sim/out/
+!sim/out/*.json
+
+# Ignore all broadcast logs
+/broadcast
 
 # Docs
 docs/
