@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePublicClient } from 'wagmi';
 import { formatUnits } from 'viem';
-import { HOOK_ADDRESS, hookAbi, CHAIN_ID } from './contracts';
+import { HOOK_ADDRESS, hookAbi, CHAIN_ID, EXPLORER } from './contracts';
 import type { FeedEvent } from './testnet';
 
 // The event ABIs from the hook (used to decode getLogs results).
@@ -20,12 +20,10 @@ function short(hash: string): string {
 }
 
 // Map a decoded hook log → the feed's display shape. Returns null for events we don't surface.
-const EXPLORER_TX = 'https://sepolia.uniscan.xyz/tx/';
-
 function toFeedEvent(log: { eventName?: string; args?: Record<string, unknown>; blockNumber?: bigint; transactionHash?: string }): FeedEvent | null {
   const a = (log.args ?? {}) as Record<string, unknown>;
   const tx = log.transactionHash ? short(log.transactionHash) : '—';
-  const txUrl = log.transactionHash ? EXPLORER_TX + log.transactionHash : undefined;
+  const txUrl = log.transactionHash ? `${EXPLORER}/tx/${log.transactionHash}` : undefined;
   const time = log.blockNumber !== undefined ? `blk ${log.blockNumber}` : 'recent';
   const num = (v: unknown) => (typeof v === 'bigint' ? Number(v) : Number(v ?? 0));
   const usd = (v: unknown) => '$' + Math.round(num(formatUnits((v as bigint) ?? 0n, 18))).toLocaleString();

@@ -5,6 +5,12 @@ export const TOKEN_WETH = '0x34b4626268da509c69e4cf03b92164b048fb9f8d' as const;
 export const TOKEN_USDC = '0x5ffa4a8d379cb2471b1d4cdf2f5f2d3eca282dd6' as const; // tUSDC, 6 dec (numéraire)
 export const CHAIN_ID = 1301 as const;
 
+// Block explorers — single source of truth (used by the live feed, tx links, wallet config).
+export const EXPLORER = 'https://sepolia.uniscan.xyz' as const; // Unichain Sepolia (1301)
+export const REACT_EXPLORER = 'https://lasna.reactscan.net' as const; // Reactive Lasna (5318007)
+export const txUrl = (hash: string) => `${EXPLORER}/tx/${hash}`;
+export const addrUrl = (addr: string) => `${EXPLORER}/address/${addr}`;
+
 // v4 sorts by address → token0 = lower address. tWETH (0x34b4) < tUSDC (0x5ffa).
 // Verified on-chain: the hook's boundKey is currency0=WETH(18), currency1=USDC(6).
 export const TOKEN0 = TOKEN_WETH; // currency0 (WETH, 18 dec)

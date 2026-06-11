@@ -13,6 +13,7 @@ import { NumberTicker } from '@/components/NumberTicker';
 import { useHookState } from '@/lib/useHookState';
 import { useHookEvents } from '@/lib/useHookEvents';
 import { TESTNET } from '@/lib/testnet';
+import { EXPLORER } from '@/lib/contracts';
 import { shortAddr } from '@/lib/format';
 
 const obsCSS = `
@@ -91,7 +92,7 @@ export function Observatory({ core, onSettle }: { core: { sweepKey: number }; on
       <div className="ob__feedwrap">
         <EventFeed events={feedEvents} maxHeight={320}
           title={useLiveFeed ? 'Reactive Network · live on-chain feed' : 'Reactive Network · verified run (re-run 04–06 for live)'}
-          explorerBase="https://sepolia.uniscan.xyz" />
+          explorerBase={EXPLORER} />
       </div>
     </div>
   );

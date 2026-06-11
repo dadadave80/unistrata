@@ -10,7 +10,7 @@ import { Panel } from '@/components/Panel';
 import { NumberTicker } from '@/components/NumberTicker';
 import { ShieldCheck, Flame, LogOut, Clock, Check } from 'lucide-react';
 import {
-  HOOK_ADDRESS, BEDROCK_TOKEN, SEDIMENT_TOKEN, erc20Abi, hookAbi, CHAIN_ID,
+  HOOK_ADDRESS, BEDROCK_TOKEN, SEDIMENT_TOKEN, erc20Abi, hookAbi, CHAIN_ID, txUrl,
 } from '@/lib/contracts';
 import { useWithdrawRequests } from '@/lib/useWithdrawRequests';
 import { shortAddr } from '@/lib/format';
@@ -215,7 +215,7 @@ export function Withdraw() {
               <Button variant={isSenior ? 'senior' : 'junior'} size="lg" fullWidth disabled={disabled} onClick={action}>{label}</Button>
 
               {tx ? (
-                <div className="wd__deptx">Submitted · <a href={`https://sepolia.uniscan.xyz/tx/${tx}`} target="_blank" rel="noreferrer">{shortAddr(tx)} ↗</a></div>
+                <div className="wd__deptx">Submitted · <a href={txUrl(tx)} target="_blank" rel="noreferrer">{shortAddr(tx)} ↗</a></div>
               ) : err ? (
                 <div className="wd__err">{err}</div>
               ) : null}

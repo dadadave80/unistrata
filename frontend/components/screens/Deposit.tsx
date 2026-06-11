@@ -10,7 +10,7 @@ import { Panel } from '@/components/Panel';
 import { TrancheCard } from '@/components/TrancheCard';
 import { NumberTicker } from '@/components/NumberTicker';
 import { ShieldCheck, Flame, LogOut } from 'lucide-react';
-import { HOOK_ADDRESS, TOKEN0, TOKEN1, TOKEN_WETH, TOKEN_USDC, erc20Abi, hookAbi, CHAIN_ID } from '@/lib/contracts';
+import { HOOK_ADDRESS, TOKEN0, TOKEN1, TOKEN_WETH, TOKEN_USDC, erc20Abi, hookAbi, CHAIN_ID, txUrl } from '@/lib/contracts';
 import { PERMIT2_ADDRESS, buildPermitBatch } from '@/lib/permit2';
 import { fmtUsd, shortAddr } from '@/lib/format';
 
@@ -194,7 +194,7 @@ export function Deposit() {
               <div className="dp__bal"><span className="k">tUSDC</span><span className="v"><NumberTicker value={usdcBal} decimals={0} /></span></div>
               <div className="dp__bal"><span className="k">tWETH</span><span className="v"><NumberTicker value={wethBal} decimals={3} /></span></div>
               {faucetTx
-                ? <span className="dp__deptx">Minted 10,000 tUSDC + 4 tWETH · <a href={`https://sepolia.uniscan.xyz/tx/${faucetTx}`} target="_blank" rel="noreferrer">{shortAddr(faucetTx)} ↗</a></span>
+                ? <span className="dp__deptx">Minted 10,000 tUSDC + 4 tWETH · <a href={txUrl(faucetTx)} target="_blank" rel="noreferrer">{shortAddr(faucetTx)} ↗</a></span>
                 : <p className="dp__helper">Claim mints 10,000 tUSDC + 4 tWETH to your wallet (DemoERC20, permissionless). Then deposit to a layer below.</p>}
             </div>
           ) : (
@@ -263,7 +263,7 @@ export function Deposit() {
 
               <Button variant={accent} size="lg" fullWidth disabled={depDisabled} onClick={depAction}>{depLabel}</Button>
               {depTx
-                ? <div className="dp__deptx">Deposit submitted · <a href={`https://sepolia.uniscan.xyz/tx/${depTx}`} target="_blank" rel="noreferrer">{shortAddr(depTx)} ↗</a></div>
+                ? <div className="dp__deptx">Deposit submitted · <a href={txUrl(depTx)} target="_blank" rel="noreferrer">{shortAddr(depTx)} ↗</a></div>
                 : err
                   ? <div className="dp__err">{err}</div>
                   : <div className="dp__foot">Withdrawals are requested, then settle at the next epoch boundary.</div>}
