@@ -22,6 +22,9 @@ export const wagmiAdapter = new WagmiAdapter({
   ssr: true,
   projectId,
   networks,
+  // No transport override on purpose: Reown's default blockchain-API proxy serves both eth_call AND
+  // the chunked getLogs feed (it accepts our ~5k-block ranges). A pinned Alchemy free-tier transport
+  // was tried and reverted — its eth_getLogs is capped at 10 blocks, which breaks the live feed.
 });
 
 export const wagmiConfig = wagmiAdapter.wagmiConfig;
