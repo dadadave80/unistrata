@@ -30,8 +30,9 @@ const landingCSS = `
 /* The metric tiles pass descriptive captions ("first-loss + fees", etc.) into Stat's inline
    \`unit\`. In a quarter-width cell those collide with the big number and wrap into fragments —
    force the unit onto its own line beneath the value. */
-.lg__metric .st-stat__value { flex-wrap: wrap; }
-.lg__metric .st-stat__unit { flex-basis: 100%; }
+.lg__metric .st-stat__value { flex-wrap: wrap; row-gap: 6px; white-space: nowrap; }
+.lg__metric .st-stat__unit { flex-basis: 100%; font-size: 11.5px; line-height: 1.45;
+  letter-spacing: 0.02em; white-space: normal; }
 .lg__charthead { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-6); }
 .lg__chartttl { font-family: var(--font-display); font-size: 28px; font-weight: 500; letter-spacing: -0.01em; color: var(--text-primary); }
 .lg__chartsub { font-family: var(--font-sans); font-size: 14px; color: var(--text-tertiary); margin-top: 6px; max-width: 46ch; line-height: 1.5; }
