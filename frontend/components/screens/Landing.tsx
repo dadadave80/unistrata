@@ -27,6 +27,11 @@ const landingCSS = `
 .lg__metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--hairline);
   border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: var(--space-11); }
 .lg__metric { background: var(--surface-card); padding: var(--space-6); }
+/* The metric tiles pass descriptive captions ("first-loss + fees", etc.) into Stat's inline
+   \`unit\`. In a quarter-width cell those collide with the big number and wrap into fragments —
+   force the unit onto its own line beneath the value. */
+.lg__metric .st-stat__value { flex-wrap: wrap; }
+.lg__metric .st-stat__unit { flex-basis: 100%; }
 .lg__charthead { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-6); }
 .lg__chartttl { font-family: var(--font-display); font-size: 28px; font-weight: 500; letter-spacing: -0.01em; color: var(--text-primary); }
 .lg__chartsub { font-family: var(--font-sans); font-size: 14px; color: var(--text-tertiary); margin-top: 6px; max-width: 46ch; line-height: 1.5; }
