@@ -1,0 +1,32 @@
+name: Setup Foundry
+description: >-
+  Install the Foundry toolchain (pinned) and restore the forge compilation cache.
+  Shared by every workflow so the install + warm build cache live in one place.
+
+inputs:
+  version:
+    description: Foundry toolchain version (passed to foundry-rs/foundry-toolchain).
+    required: false
+    default: stable
+
+runs:
+  using: composite
+  steps:
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+      with:
+        version: ${{ inputs.version }}
+
+    # forge's own cache/ is content-hashed, so a stale restore only ever forces a
+    # recompile of changed files — never wrong artifacts. The key tracks every .sol +
+    # foundry.toml + submodule pins; restore-keys falls back to the newest cache for a
+    # warm incremental build even on a key miss.
+    - name: Restore forge build cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          cache
+          out
+        key: forge-${{ runner.os }}-${{ hashFiles('**/*.sol', 'foundry.toml', '.gitmodules') }}
+        restore-keys: |
+          forge-${{ runner.os }}-
