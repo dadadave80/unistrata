@@ -116,6 +116,20 @@ export function Portfolio() {
   const scaleMax = live.tvl ? live.tvl * 1.3 : 30000;
   const volRatio = live.spikeThreshold > 0 ? live.varAccEpoch / live.spikeThreshold : 0;
 
+  // Cold-feed hint — the feed scans a live ~8h rolling window (useHookEvents), so an empty feed means the
+  // chain's just been quiet, not that anything broke. Anchor it with last-settlement recency (epochStart =
+  // when the current epoch began) + the action that wakes it, so a cold site reads as intentional.
+  const sinceSettle = live.live && live.epochStart
+    ? (() => {
+        const s = Math.max(0, Math.floor(Date.now() / 1000) - live.epochStart);
+        const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+        return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+      })()
+    : null;
+  const feedEmptyLabel = !live.live
+    ? 'Awaiting live data — waiting on the first on-chain read.'
+    : `Connected — no hook events in the last ~8h.${sinceSettle ? ` Last settled at epoch ${live.epoch}, ${sinceSettle} ago.` : ''} The feed streams a live rolling window: fire a swap (or wait for the next epoch) and events appear here in real time.`;
+
   return (
     <div>
       <style dangerouslySetInnerHTML={{ __html: psCSS }} />
@@ -153,7 +167,7 @@ export function Portfolio() {
           <div className="ps__feedwrap">
             <EventFeed events={liveFeed.events} maxHeight={500}
               title="Reactive Network · live on-chain feed"
-              emptyLabel="No on-chain events yet. Run the live-market demo (01_LiveMarket) to populate the feed — it streams here as the hook emits them."
+              emptyLabel={feedEmptyLabel}
               explorerBase={EXPLORER} />
           </div>
         </div>
