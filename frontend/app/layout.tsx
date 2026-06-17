@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     default: 'Unistrata — a liquidity pool, priced as a capital structure',
     template: '%s · Unistrata',
   },
-  description: 'Bedrock (senior) earns a fixed variance-priced coupon; Sediment (junior) underwrites the volatility. Oracle-free, Reactive settlement.',
+  description: 'Bedrock (senior) earns a variance-priced coupon (0–50% APR); Sediment (junior) underwrites the volatility. Oracle-free, Reactive settlement.',
   icons: { icon: '/strata-mark.svg' },
 };
 

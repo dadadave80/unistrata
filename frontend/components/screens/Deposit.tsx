@@ -192,6 +192,10 @@ export function Deposit() {
   const bedrockCouponPct = hookReads && hookReads[0].status === 'success'
     ? Number(formatUnits(hookReads[0].result as bigint, 18)) * 100 : 0;
   const bedApr = `${bedrockCouponPct.toFixed(1)}%`;
+  // The coupon is variance-priced — clamp(feeYield − λσ²/8, 0, 50%). It FLOORS at 0 when realized vol is
+  // extreme (the IL reserve exceeds the fee yield); that's the pricing working, not a missing yield.
+  const bedFloored = bedrockCouponPct <= 0;
+  const bedCaption = bedFloored ? 'variance-priced · floored' : 'variance-priced';
   const sedApr = `${seNavPerShare.toFixed(2)}×`;
 
   // Live pool split (Bedrock vs Sediment NAV) for the cross-section caption.
@@ -293,7 +297,7 @@ export function Deposit() {
       <style dangerouslySetInnerHTML={{ __html: depositCSS }} />
       <div className="dp__head">
         <div className="dp__title">Choose your layer</div>
-        <p className="dp__sub">The same instrument, two temperaments. Bedrock is the senior layer — fixed coupon, protected first. Sediment is the junior layer — levered yield in exchange for absorbing loss first.</p>
+        <p className="dp__sub">The same instrument, two temperaments. Bedrock is the senior layer — a variance-priced coupon, protected first. Sediment is the junior layer — levered yield in exchange for absorbing loss first.</p>
       </div>
 
       <div className="dp__faucet">
@@ -331,8 +335,8 @@ export function Deposit() {
               <span className="role">Junior layer — absorbs loss first, keeps all excess fees and the risk premium</span>
             </button>
             <button type="button" className="dp__layer dp__layer--bed" role="radio" aria-checked={isSenior} data-on={isSenior} onClick={() => setTranche('senior')}>
-              <span className="row1"><span className="nm">Bedrock</span><span className="apr">{bedApr}</span><span className="apl">fixed this epoch</span></span>
-              <span className="role">Senior layer — fixed coupon priced from σ², protected until Sediment is exhausted</span>
+              <span className="row1"><span className="nm">Bedrock</span><span className="apr">{bedApr}</span><span className="apl">{bedCaption}</span></span>
+              <span className="role">Senior layer — coupon priced from realized σ² (0–50% APR, floors at 0 in extreme vol), protected until Sediment is exhausted</span>
             </button>
           </div>
           <div className="dp__corecap">
@@ -344,7 +348,7 @@ export function Deposit() {
               {(isSenior ? [
                 { k: 'Coverage ratio', v: `${fmtUsd(live.sedimentNav, 0)} Sediment below you`, tone: 'var(--senior-200)' },
                 { k: 'NAV per share', v: `${beNavPerShare.toFixed(4)} · protected` },
-                { k: 'Coupon priced from', v: 'realized σ²' },
+                { k: 'Coupon priced from', v: 'realized σ² · 0–50% APR' },
               ] : [
                 { k: 'Role', v: 'first-loss underwriter', tone: 'var(--junior-200)' },
                 { k: 'Excess fees', v: 'all retained' },
@@ -357,7 +361,7 @@ export function Deposit() {
         </div>
 
         <div className="dp__ticket">
-          <Panel accent={accent} eyebrow={isSenior ? 'Deposit to Bedrock' : 'Deposit to Sediment'} title={isSenior ? `Fixed coupon · ${bedApr} this epoch` : 'Levered yield · junior layer'}>
+          <Panel accent={accent} eyebrow={isSenior ? 'Deposit to Bedrock' : 'Deposit to Sediment'} title={isSenior ? `Variance-priced coupon · ${bedApr} this epoch` : 'Levered yield · junior layer'}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
               <div className="dp__field">
                 <div className="dp__balline">

@@ -60,8 +60,8 @@ export function Landing() {
             LPs are forced sellers of volatility with no buyer.<br />Unistrata built the <em>buyer</em>.
           </h1>
           <p className="lg__sub">
-            A liquidity pool, split into two layers like geological strata. Bedrock earns a fixed coupon priced
-            from the pool&apos;s own measured volatility. Sediment underwrites the risk and keeps the premium.
+            A liquidity pool, split into two layers like geological strata. Bedrock earns a coupon priced
+            from the pool&apos;s own measured volatility — 0 to 50% APR. Sediment underwrites the risk and keeps the premium.
           </p>
           <div className="lg__cta">
             <Button variant="primary" size="lg" onClick={() => nav('/deposit')}>Open Unistrata</Button>

@@ -79,7 +79,7 @@ export function TrancheCard({
   capacityLabel, footnote, selected = false, onSelect, className = '', children, ...rest
 }: TrancheCardProps) {
   const defaults = tranche === 'senior'
-    ? { name: 'Bedrock', role: 'Senior layer — fixed coupon, protected first', aprLabel: 'fixed this epoch' }
+    ? { name: 'Bedrock', role: 'Senior layer — variance-priced coupon, protected first', aprLabel: 'variance-priced' }
     : { name: 'Sediment', role: 'Junior layer — levered yield, absorbs loss first', aprLabel: 'trailing 30d' };
   return (
     <button type="button"
