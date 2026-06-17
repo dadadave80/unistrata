@@ -80,7 +80,7 @@ export function Portfolio() {
       { address: BEDROCK_TOKEN, abi: erc20Abi, functionName: 'totalSupply', chainId: CHAIN_ID },
       { address: SEDIMENT_TOKEN, abi: erc20Abi, functionName: 'totalSupply', chainId: CHAIN_ID },
     ],
-    query: { enabled: isConnected, refetchInterval: 30_000 },
+    query: { refetchInterval: 30_000 },
   });
   const ok = (i: number) => Boolean(reads && reads[i].status === 'success');
   const num = (i: number) => (ok(i) ? Number(formatUnits(reads![i].result as bigint, 18)) : 0);

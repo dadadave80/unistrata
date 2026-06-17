@@ -30,7 +30,7 @@ function short(hash: string): string {
 }
 
 // Map a decoded hook log → the feed's display shape. Returns null for events we don't surface.
-function toFeedEvent(log: { eventName?: string; args?: Record<string, unknown>; blockNumber?: bigint; transactionHash?: string }): FeedEvent | null {
+function toFeedEvent(log: { eventName?: string; args?: Record<string, unknown>; blockNumber?: bigint; transactionHash?: string }, baseline = 0): FeedEvent | null {
   const a = (log.args ?? {}) as Record<string, unknown>;
   const tx = log.transactionHash ? short(log.transactionHash) : '—';
   const txUrl = log.transactionHash ? `${EXPLORER}/tx/${log.transactionHash}` : undefined;
@@ -45,9 +45,13 @@ function toFeedEvent(log: { eventName?: string; args?: Record<string, unknown>; 
     case 'EpochSettled':
       return { time, kind: 'settle', epoch: num(a.epochId), chain: 'Unichain Sepolia', tx, txUrl,
         message: `Epoch ${num(a.epochId)} settled — Bedrock ${usd(a.bedrockNav)} · Sediment ${usd(a.sedimentNav)} (<span class="fn">EpochSettled</span>)` };
-    case 'UnistrataObservation':
+    case 'UnistrataObservation': {
+      // Show varAcc THIS EPOCH (cumulative − epoch baseline) so the feed counts toward the 4M trigger in
+      // lockstep with the gauge — not the monotonic all-time accumulator (which dwarfs the trigger).
+      const perEpoch = Math.max(0, num(a.varAcc) - baseline);
       return { time, kind: 'info', epoch: 0, chain: 'Unichain Sepolia', tx, txUrl,
-        message: `New-block observation → varAcc <span class="em">${num(a.varAcc).toLocaleString()}</span> (UnistrataObservation)` };
+        message: `New-block observation → varAcc <span class="em">${perEpoch.toLocaleString()}</span> / 4,000,000 trigger (UnistrataObservation)` };
+    }
     case 'Deposit':
       return { time, kind: 'settle', epoch: 0, chain: 'Unichain Sepolia', tx, txUrl,
         message: `Deposit → ${a.isBedrock ? 'Bedrock' : 'Sediment'} ${usd(a.value)} (<span class="fn">${num(a.shares ? formatUnits(a.shares as bigint, 18) : 0).toFixed(0)} shares</span>)` };
@@ -79,6 +83,12 @@ export function useHookEvents(): { events: FeedEvent[]; live: boolean } {
     async function load() {
       try {
         const latest = await client!.getBlockNumber();
+        // Per-epoch baseline so observation rows show varAcc THIS epoch (matches the gauge + the 4M trigger),
+        // not the monotonic all-time accumulator. Falls back to 0 (shows cumulative) if the read fails.
+        let baseline = 0;
+        try {
+          baseline = Number(await client!.readContract({ address: HOOK_ADDRESS, abi: hookAbi, functionName: 'varAccAtEpochStart' }));
+        } catch { /* baseline stays 0 */ }
         const collected: { blockNumber?: bigint }[] = [];
         let to = latest;
         let emptyStreak = 0;
@@ -108,7 +118,7 @@ export function useHookEvents(): { events: FeedEvent[]; live: boolean } {
         if (cancelled) return;
         collected.sort((a, b) => Number((b.blockNumber ?? 0n) - (a.blockNumber ?? 0n))); // newest first
         const mapped = collected
-          .map((l) => toFeedEvent(l as never))
+          .map((l) => toFeedEvent(l as never, baseline))
           .filter((e): e is FeedEvent => e !== null)
           .slice(0, MAX_EVENTS);
         // Only surface "live" once we actually have events. An empty (but successful) scan leaves
