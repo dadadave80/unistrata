@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Unistrata — Pitch</title>
+<style>
+/* Unistrata pitch deck — tokens ported verbatim from frontend/app/globals.css.
+   Self-contained: open in any browser. ← → / Space to move, F = fullscreen,
+   ⌘P / Ctrl-P → "Save as PDF" (landscape, background graphics ON) for slides. */
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Spline+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --ink-950:#090D0E; --ink-900:#0C1113; --ink-850:#10171A; --ink-800:#141C1F;
+  --ink-750:#182226; --ink-700:#1E2A2E; --ink-600:#2C3C41; --ink-550:#36484E;
+  --paper-100:#ECEAE3; --paper-200:#C9CECC; --paper-300:#9AA3A2; --paper-400:#6E7977;
+  --senior-200:#97CDD6; --senior-300:#6DB4C0; --senior-400:#4E97A6; --senior-500:#3C7E8D; --senior-900:#112730;
+  --junior-200:#E8BB7E; --junior-300:#DD9F52; --junior-400:#D2873A; --junior-800:#50311C;
+  --loss-300:#D9938A; --loss-400:#C57267;
+  --border-subtle:#1C272B; --hairline:#16201F;
+  --font-display:'Newsreader',Georgia,'Times New Roman',serif;
+  --font-sans:'Spline Sans',ui-sans-serif,system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,'SF Mono','Cascadia Mono',Menlo,monospace;
+  --ease-out:cubic-bezier(0.16,1,0.3,1);
+  --prog:0%;
+}
+*,*::before,*::after{box-sizing:border-box;}
+html,body{margin:0;height:100%;background:var(--ink-950);color:var(--paper-100);
+  font-family:var(--font-sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact;overflow:hidden;}
+::selection{background:color-mix(in oklab,var(--senior-400) 32%,transparent);}
+
+/* ---- slide scaffold ---- */
+.slide{position:fixed;inset:0;display:grid;place-items:center;
+  padding:clamp(28px,4.5vw,84px) clamp(28px,5vw,96px);
+  opacity:0;visibility:hidden;transform:translateY(10px);
+  transition:opacity .36s var(--ease-out),transform .36s var(--ease-out);
+  background:radial-gradient(120% 95% at 80% -10%,#0E1518 0%,var(--ink-950) 60%);}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.stage{width:min(1160px,92vw);}
+
+/* ---- type ---- */
+.eyebrow{font-family:var(--font-mono);font-weight:500;text-transform:uppercase;
+  letter-spacing:.16em;font-size:clamp(10.5px,1.05vw,14px);color:var(--senior-300);
+  display:flex;align-items:center;gap:.7em;margin-bottom:clamp(16px,2.4vw,32px);}
+.eyebrow b{color:var(--paper-400);font-weight:500;}
+.eyebrow::before{content:"";width:clamp(20px,2.4vw,34px);height:2px;background:var(--senior-400);display:inline-block;}
+h1.hero{font-family:var(--font-display);font-weight:500;line-height:1.02;
+  letter-spacing:-.022em;font-size:clamp(44px,7.4vw,120px);margin:0;}
+h2.head{font-family:var(--font-display);font-weight:500;line-height:1.06;
+  letter-spacing:-.018em;font-size:clamp(32px,5.2vw,72px);margin:0;text-wrap:balance;}
+.head em,.hero em{font-style:italic;}
+.sell-em{color:var(--junior-200);} .buy-em{color:var(--senior-200);}
+.lead{font-family:var(--font-sans);font-size:clamp(16px,2vw,25px);line-height:1.5;
+  color:var(--paper-200);max-width:42ch;margin:clamp(18px,2.4vw,30px) 0 0;}
+.lead.wide{max-width:58ch;}
+.pull{font-family:var(--font-display);font-style:italic;font-size:clamp(17px,2.2vw,30px);
+  color:var(--paper-100);line-height:1.3;margin-top:clamp(20px,2.8vw,36px);
+  padding-left:clamp(14px,1.4vw,20px);border-left:2px solid var(--senior-400);}
+.sub{font-family:var(--font-sans);font-size:clamp(15px,1.7vw,22px);color:var(--paper-300);
+  line-height:1.5;max-width:52ch;margin:clamp(16px,2vw,26px) 0 0;}
+
+/* ---- title ---- */
+.title-wrap{display:flex;align-items:center;gap:clamp(18px,2.4vw,34px);margin:6px 0 4px;}
+.title-wrap svg{width:clamp(52px,6vw,84px);height:auto;flex:none;
+  filter:drop-shadow(0 0 28px rgba(109,180,192,.18));}
+.title-sub{font-family:var(--font-display);font-size:clamp(18px,2.4vw,32px);color:var(--paper-200);
+  margin-top:clamp(14px,1.8vw,24px);}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:clamp(24px,3vw,40px);}
+.chip{font-family:var(--font-mono);font-size:clamp(11px,1.15vw,15px);letter-spacing:.02em;
+  color:var(--paper-200);background:var(--ink-800);border:1px solid var(--border-subtle);
+  border-radius:999px;padding:.5em 1em;}
+.chip.tealdot::before,.chip.amberdot::before{content:"";display:inline-block;width:.55em;height:.55em;
+  border-radius:50%;margin-right:.55em;vertical-align:.02em;}
+.chip.tealdot::before{background:var(--senior-300);box-shadow:0 0 10px var(--senior-400);}
+.chip.amberdot::before{background:var(--junior-300);box-shadow:0 0 10px var(--junior-400);}
+.byline{font-family:var(--font-mono);font-size:clamp(11px,1.2vw,15px);color:var(--paper-400);
+  letter-spacing:.02em;margin-top:clamp(18px,2.4vw,30px);}
+.byline b{color:var(--paper-100);font-weight:500;}
+.byline .sep{color:var(--ink-550);margin:0 .55em;}
+
+/* ---- two-column ---- */
+.cols{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(28px,4vw,64px);align-items:center;}
+.cols.rev{grid-template-columns:.92fr 1.08fr;}
+
+/* ---- core sample ---- */
+svg.core{width:100%;max-width:clamp(220px,26vw,330px);height:auto;display:block;margin:0 auto;
+  filter:drop-shadow(0 18px 40px rgba(0,0,0,.55));}
+
+/* ---- tranche cards ---- */
+.cardstack{display:flex;flex-direction:column;gap:clamp(12px,1.6vw,20px);}
+.card{border:1px solid var(--border-subtle);border-radius:11px;padding:clamp(16px,1.8vw,26px);
+  background:linear-gradient(180deg,#141C1F 0%,#10171A 100%);position:relative;overflow:hidden;}
+.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
+.card.senior::before{background:var(--senior-400);} .card.junior::before{background:var(--junior-400);}
+.card h3{font-family:var(--font-mono);font-weight:600;text-transform:uppercase;letter-spacing:.14em;
+  font-size:clamp(13px,1.4vw,17px);margin:0 0 .5em;display:flex;justify-content:space-between;align-items:baseline;gap:1em;}
+.card.senior h3{color:var(--senior-200);} .card.junior h3{color:var(--junior-200);}
+.card h3 span{font-size:.72em;letter-spacing:.04em;color:var(--paper-400);font-weight:500;text-transform:none;}
+.card p{font-family:var(--font-sans);font-size:clamp(14px,1.55vw,19px);line-height:1.45;color:var(--paper-200);margin:0;}
+.card .tag{display:inline-block;margin-top:.7em;font-family:var(--font-mono);font-size:clamp(11px,1.15vw,14px);
+  letter-spacing:.02em;color:var(--paper-300);}
+
+/* ---- flow diagram ---- */
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:clamp(8px,1vw,14px);margin-top:clamp(22px,3vw,40px);}
+.node{font-family:var(--font-mono);font-size:clamp(12px,1.35vw,18px);line-height:1.2;
+  background:var(--ink-800);border:1px solid var(--border-subtle);border-radius:8px;
+  padding:.7em .95em;color:var(--paper-100);display:flex;align-items:center;}
+.node.key{border-color:var(--senior-500);box-shadow:inset 0 -2px 0 var(--senior-400);color:#fff;}
+.node small{display:block;color:var(--paper-400);font-size:.74em;letter-spacing:.02em;margin-top:.2em;}
+.arrow{display:flex;align-items:center;color:var(--senior-300);font-size:clamp(15px,1.7vw,22px);font-family:var(--font-mono);}
+
+/* ---- formula ---- */
+.formula{font-family:var(--font-mono);font-size:clamp(20px,3vw,46px);color:var(--paper-100);
+  letter-spacing:.01em;margin:clamp(10px,1.4vw,18px) 0 0;}
+.formula b{color:var(--junior-200);font-weight:600;}
+
+/* ---- stat tags ---- */
+.tags{display:flex;flex-wrap:wrap;gap:clamp(10px,1.4vw,18px);margin-top:clamp(22px,3vw,38px);}
+.tag-stat{font-family:var(--font-mono);font-size:clamp(13px,1.5vw,19px);padding:.6em 1em;border-radius:8px;
+  border:1px solid var(--border-subtle);background:var(--ink-850);}
+.tag-stat.loss{color:var(--loss-300);border-color:#3a2622;}
+.tag-stat.senior{color:var(--senior-200);border-color:#19363e;}
+.tag-stat.junior{color:var(--junior-200);border-color:#3a2516;}
+
+/* ---- ledger (proof) ---- */
+.ledger{margin-top:clamp(20px,2.6vw,34px);border-top:1px solid var(--hairline);}
+.row{display:grid;grid-template-columns:clamp(78px,9vw,124px) 1fr;gap:clamp(14px,2vw,32px);
+  align-items:baseline;padding:clamp(13px,1.7vw,22px) 2px;border-bottom:1px solid var(--hairline);}
+.row .k{font-family:var(--font-mono);font-size:clamp(11px,1.2vw,15px);letter-spacing:.14em;text-transform:uppercase;color:var(--senior-300);}
+.row .v{font-family:var(--font-sans);font-size:clamp(15px,1.75vw,22px);color:var(--paper-100);line-height:1.35;}
+.row .v code{font-family:var(--font-mono);color:var(--paper-300);font-size:.86em;}
+
+/* crash chart */
+svg.chart{width:100%;height:auto;max-height:40vh;display:block;margin-top:clamp(10px,1.4vw,18px);}
+.chart text{font-family:var(--font-mono);}
+.punch{font-family:var(--font-mono);font-size:clamp(12px,1.4vw,18px);color:var(--senior-200);
+  letter-spacing:.02em;margin-top:clamp(12px,1.6vw,20px);}
+
+/* ---- chrome ---- */
+.chrome{position:fixed;left:0;right:0;bottom:0;height:38px;pointer-events:none;z-index:20;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 clamp(18px,3vw,40px);font-family:var(--font-mono);font-size:12px;color:var(--paper-400);}
+.chrome .brand{display:flex;align-items:center;gap:8px;letter-spacing:.16em;text-transform:uppercase;}
+.chrome .brand svg{width:16px;height:16px;}
+.progress{position:fixed;left:0;bottom:0;height:2px;width:100%;background:var(--hairline);z-index:19;}
+.progress::after{content:"";position:absolute;left:0;top:0;height:100%;width:var(--prog);
+  background:linear-gradient(90deg,var(--senior-500),var(--senior-300));transition:width .36s var(--ease-out);}
+.hint{position:fixed;left:50%;bottom:46px;transform:translateX(-50%);z-index:20;
+  font-family:var(--font-mono);font-size:11px;color:var(--paper-400);background:var(--ink-850);
+  border:1px solid var(--border-subtle);border-radius:999px;padding:.45em 1em;opacity:.9;
+  transition:opacity .4s ease;pointer-events:none;}
+.hint.gone{opacity:0;}
+
+@media (max-width:760px){ .cols,.cols.rev{grid-template-columns:1fr;} svg.core{max-width:240px;} }
+@media (prefers-reduced-motion:reduce){ .slide{transition:none;} .progress::after{transition:none;} }
+
+@media print{
+  html,body{overflow:visible;height:auto;}
+  .slide{position:relative;inset:auto;visibility:visible;opacity:1;transform:none;
+    width:100vw;height:100vh;page-break-after:always;break-after:page;}
+  .chrome,.progress,.hint{display:none;}
+  @page{size:landscape;margin:0;}
+}
+</style>
+</head>
+<body>
+
+<!-- shared SVG defs (gradients referenced by every core sample) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="strata" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#EBC487"/><stop offset="0.15" stop-color="#DD9F52"/>
+    <stop offset="0.33" stop-color="#C57B33"/><stop offset="0.50" stop-color="#8C5E2B"/>
+    <stop offset="0.585" stop-color="#3C7E8D"/><stop offset="0.80" stop-color="#2C6573"/>
+    <stop offset="1" stop-color="#1B454F"/>
+  </linearGradient>
+</defs></svg>
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide active">
+  <div class="stage">
+    <div class="eyebrow">Uniswap v4 hook <b>·</b> Reactive-settled <b>·</b> Oracle-free</div>
+    <div class="title-wrap">
+      <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-label="Unistrata">
+        <defs>
+          <clipPath id="mc"><rect x="3.5" y="3.5" width="25" height="25" rx="6.5"/></clipPath>
+          <linearGradient id="mgs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3C7E8D"/><stop offset="1" stop-color="#16323A"/></linearGradient>
+          <linearGradient id="mgj" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D2873A"/><stop offset="1" stop-color="#8A5326"/></linearGradient>
+        </defs>
+        <g clip-path="url(#mc)">
+          <rect x="3.5" y="3.5" width="25" height="25" fill="#0C1113"/>
+          <rect x="3.5" y="7.4" width="25" height="1.1" fill="#ECEAE3" opacity="0.22"/>
+          <rect x="3.5" y="10.2" width="25" height="1.1" fill="#ECEAE3" opacity="0.34"/>
+          <rect x="3.5" y="13.4" width="25" height="5.0" fill="url(#mgj)"/><rect x="3.5" y="13.4" width="25" height="1.1" fill="#DD9F52"/>
+          <rect x="3.5" y="19.0" width="25" height="9.5" fill="url(#mgs)"/><rect x="3.5" y="19.0" width="25" height="1.1" fill="#6DB4C0"/>
+        </g>
+        <rect x="4" y="4" width="24" height="24" rx="6" fill="none" stroke="#2C3C41" stroke-width="1"/>
+      </svg>
+      <h1 class="hero">Unistrata</h1>
+    </div>
+    <div class="title-sub">A Uniswap&nbsp;v4 pool, priced as a <em>capital structure.</em></div>
+    <div class="chips">
+      <span class="chip tealdot">Bedrock — senior, protected coupon</span>
+      <span class="chip amberdot">Sediment — junior, first-loss</span>
+      <span class="chip">live · unistrata.vercel.app</span>
+    </div>
+    <div class="byline"><b>David Dada</b><span class="sep">·</span>@dadadave80</div>
+  </div>
+</section>
+
+<!-- ============ 02 · PROBLEM ============ -->
+<section class="slide">
+  <div class="stage">
+    <div class="eyebrow">01 — The problem</div>
+    <h2 class="head">LPs are forced <em class="sell-em">sellers</em> of volatility — with no <em class="buy-em">buyer</em>.</h2>
+    <p class="lead wide">Every AMM liquidity provider is implicitly short gamma. When price moves, arbitrage picks them off — impermanent loss, or LVR. There's no way to opt out of that risk and simply earn yield.</p>
+    <p class="pull">It is the largest unhedged short-volatility position in DeFi — and nobody is on the other side of the trade.</p>
+  </div>
+</section>
+
+<!-- ============ 03 · INSIGHT ============ -->
+<section class="slide">
+  <div class="stage">
+    <div class="eyebrow">02 — The insight</div>
+    <h2 class="head">That volatility has a <em class="buy-em">price.</em></h2>
+    <p class="lead wide">The value bled to arbitrage per unit of time is the cost of being short the pool's variance. It is a real, measurable cashflow — and no one was selling it back to LPs as a product.</p>
+    <p class="formula">LVR&nbsp;≈&nbsp;<b>σ²&nbsp;/&nbsp;8</b><span style="font-family:var(--font-sans);font-size:.42em;color:var(--paper-400);letter-spacing:0;"> &nbsp;per unit time — the price of the pool's variance</span></p>
+    <p class="pull">So we split one LP position into two: a <em class="buy-em">buyer</em> and a <em class="sell-em">seller</em> of that variance.</p>
+  </div>
+</section>
+
+<!-- ============ 04 · PRODUCT ============ -->
+<section class="slide">
+  <div class="stage">
+    <div class="eyebrow">03 — The product</div>
+    <div class="cols rev">
+      <svg class="core" viewBox="0 0 280 380" xmlns="http://www.w3.org/2000/svg" aria-label="Capital structure core sample">
+        <rect x="20" y="20" width="240" height="340" rx="16" fill="url(#strata)"/>
+        <g stroke="#06090A" stroke-opacity="0.30" stroke-width="1.5">
+          <line x1="20" y1="64" x2="260" y2="64"/><line x1="20" y1="104" x2="260" y2="104"/>
+          <line x1="20" y1="144" x2="260" y2="144"/><line x1="20" y1="262" x2="260" y2="262"/>
+          <line x1="20" y1="306" x2="260" y2="306"/>
+        </g>
+        <line x1="20" y1="208" x2="260" y2="208" stroke="#D6EEF2" stroke-opacity="0.6" stroke-width="2"/>
+        <g font-family="'IBM Plex Mono',monospace">
+          <text x="40" y="56" fill="#3A2516" font-size="15" font-weight="600" letter-spacing="2.5">SEDIMENT</text>
+          <text x="40" y="76" fill="#4E311C" font-size="11" font-weight="500">junior · absorbs the IL</text>
+          <text x="40" y="248" fill="#E2F4F7" font-size="15" font-weight="600" letter-spacing="2.5">BEDROCK</text>
+          <text x="40" y="268" fill="#BFE2E8" font-size="11" font-weight="500">senior · principal held flat</text>
+        </g>
+      </svg>
+      <div>
+        <h2 class="head" style="margin-bottom:.5em;">Two strata.<br/>One pool.</h2>
+        <div class="cardstack">
+          <div class="card junior">
+            <h3>Sediment <span>junior · first-loss</span></h3>
+            <p>Absorbs impermanent loss first. In return, keeps the swap fees <em>and</em> the coupon premium.</p>
+            <span class="tag">→ the volatility <b style="color:var(--junior-200)">seller</b></span>
+          </div>
+          <div class="card senior">
+            <h3>Bedrock <span>senior · protected</span></h3>
+            <p>Principal held flat. Earns a fixed coupon, priced from the pool's own realized variance.</p>
+            <span class="tag">→ the volatility <b style="color:var(--senior-200)">buyer</b></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 05 · HOW IT WORKS ============ -->
+<section class="slide">
+  <div class="stage">
+    <div class="eyebrow">04 — How it works · the oracle</div>
+    <h2 class="head">The pool prices its <em class="buy-em">own</em> risk.</h2>
+    <p class="lead wide">In <code style="font-family:var(--font-mono);color:var(--senior-200)">afterSwap</code>, the hook squares each block's tick move into an on-chain realized-variance accumulator. The Bedrock coupon is set straight from it — calm pool, cheap coupon; violent pool, Sediment gets paid more.</p>
+    <div class="flow">
+      <div class="node">swap<small>every trade</small></div>
+      <div class="arrow">→</div>
+      <div class="node">tickΔ²<small>per block</small></div>
+      <div class="arrow">→</div>
+      <div class="node key">varAcc<small>realized σ²</small></div>
+      <div class="arrow">→</div>
+      <div class="node">r = clamp( feeYield − λ·σ²/8 )<small>coupon</small></div>
+    </div>
+    <p class="pull">No external oracle. No price feed to manipulate. The pool <em class="buy-em">is</em> the oracle.</p>
+  </div>
+</section>
+
+<!-- ============ 06 · SETTLEMENT ============ -->
+<section class="slide">
+  <div class="stage">
+    <div class="eyebrow">05 — How it settles</div>
+    <h2 class="head">Settles itself. <em class="buy-em">Across chains.</em></h2>
+    <p class="lead wide">A Reactive Network contract on Lasna subscribes to the hook's variance stream on Unichain. When variance spikes past the trigger, it fires a cross-chain callback that settles the tranches — instantly, autonomously.</p>
+    <div class="flow">
+      <div class="node">Unichain<small>hook emits observation</small></div>
+      <div class="arrow">→</div>
+      <div class="node">Lasna RSC<small>watches the stream</small></div>
+      <div class="arrow">→</div>
+      <div class="node key">variance spike<small>trigger crossed</small></div>
+      <div class="arrow">→</div>
+      <div class="node">callback<small>emergencySettle</small></div>
+    </div>
+    <p class="pull">No keepers. No bots. No trusted operator pressing a button.</p>
+  </div>
+</section>
+
+<!-- ============ 07 · THE PROOF (crash) ============ -->
+<section class="slide">
+  <div class="stage">
+    <div class="eyebrow">06 — The proof</div>
+    <h2 class="head">We replayed the May&nbsp;2021 crash. <em class="buy-em">On-chain.</em></h2>
+    <svg class="chart" viewBox="0 0 1180 300" xmlns="http://www.w3.org/2000/svg" aria-label="Bedrock holds flat through a 50% crash while a vanilla LP bleeds to impermanent loss">
+      <!-- axes -->
+      <line x1="60" y1="40" x2="60" y2="250" stroke="#1C272B" stroke-width="1"/>
+      <line x1="60" y1="250" x2="900" y2="250" stroke="#1C272B" stroke-width="1"/>
+      <!-- IL gap fill: between HODL and LP -->
+      <path d="M60,86 L270,118 L480,196 L700,162 L900,128 L900,205 L700,232 L480,250 L270,150 L60,86 Z"
+            fill="#C57267" fill-opacity="0.10"/>
+      <!-- crash marker -->
+      <line x1="480" y1="40" x2="480" y2="250" stroke="#36484E" stroke-width="1" stroke-dasharray="3 5"/>
+      <text x="488" y="58" fill="#C57267" font-size="15" font-weight="600">ETH −50%</text>
+      <!-- HODL reference (dashed paper) -->
+      <polyline points="60,86 270,118 480,196 700,162 900,128" fill="none" stroke="#6E7977" stroke-width="2" stroke-dasharray="4 5"/>
+      <text x="912" y="124" fill="#9AA3A2" font-size="15">HODL</text>
+      <!-- Vanilla LP (loss, bleeds and stays down) -->
+      <polyline points="60,86 270,150 480,250 700,232 900,205" fill="none" stroke="#C57267" stroke-width="2.5"/>
+      <text x="912" y="205" fill="#D9938A" font-size="15">Vanilla LP · IL</text>
+      <!-- Bedrock (teal, flat, the hero) -->
+      <polyline points="60,86 270,84 480,86 700,84 900,86" fill="none" stroke="#6DB4C0" stroke-width="3.5"/>
+      <text x="912" y="84" fill="#97CDD6" font-size="15" font-weight="600">Bedrock · flat</text>
+    </svg>
+    <p class="punch">→ then the tranches settled cross-chain — automatically.</p>
+    <div class="tags">
+      <span class="tag-stat loss">price&nbsp;−50%</span>
+      <span class="tag-stat senior">Bedrock held flat</span>
+      <span class="tag-stat junior">Sediment absorbed the loss</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 08 · IT'S REAL ============ -->
+<section class="slide">
+  <div class="stage">
+    <div class="eyebrow">07 — It's real</div>
+    <h2 class="head">Not a mockup. A <em class="buy-em">deployment.</em></h2>
+    <div class="ledger">
+      <div class="row"><div class="k">Live</div><div class="v">Deployed on Unichain Sepolia &nbsp;<code>hook 0x1c92…1840</code></div></div>
+      <div class="row"><div class="k">Tested</div><div class="v">150 tests · 24 suites · invariant-checked waterfall</div></div>
+      <div class="row"><div class="k">Verified</div><div class="v">Crash settled cross-chain: epoch&nbsp;0→1 · Lasna RSC reaction&nbsp;#667 → <code>callback 0x1cb6…ac43</code></div></div>
+      <div class="row"><div class="k">Ship</div><div class="v">Live frontend reading the chain — <code>unistrata.vercel.app</code></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 09 · CLOSE ============ -->
+<section class="slide">
+  <div class="stage" style="text-align:center;">
+    <div class="eyebrow" style="justify-content:center;">Unistrata</div>
+    <h1 class="hero">Unistrata built<br/>the <em class="buy-em">buyer.</em></h1>
+    <p class="sub" style="margin-left:auto;margin-right:auto;">Tradable volatility for the people who were forced to sell it — a new primitive for structured products on AMM liquidity.</p>
+    <div class="chips" style="justify-content:center;">
+      <span class="chip tealdot">Uniswap v4</span>
+      <span class="chip amberdot">Reactive Network</span>
+      <span class="chip">unistrata.vercel.app</span>
+    </div>
+    <div class="byline"><b>David Dada</b><span class="sep">·</span>X @dadadave80<span class="sep">·</span>GitHub dadadave80<span class="sep">·</span>Discord daveproxy80</div>
+  </div>
+</section>
+
+<!-- chrome -->
+<div class="chrome">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <g clip-path="url(#mc)">
+        <rect x="3.5" y="3.5" width="25" height="25" fill="#0C1113"/>
+        <rect x="3.5" y="13.4" width="25" height="5" fill="url(#mgj)"/>
+        <rect x="3.5" y="19" width="25" height="9.5" fill="url(#mgs)"/>
+      </g>
+      <rect x="4" y="4" width="24" height="24" rx="6" fill="none" stroke="#2C3C41"/>
+    </svg>
+    <span>Unistrata</span>
+  </div>
+  <div id="counter">01 / 09</div>
+</div>
+<div class="progress"></div>
+<div class="hint" id="hint">← → move · F fullscreen · ⌘P → PDF</div>
+
+<script>
+(function(){
+  var slides=[].slice.call(document.querySelectorAll('.slide'));
+  var counter=document.getElementById('counter');
+  var hint=document.getElementById('hint');
+  var n=slides.length, i=0;
+  function pad(x){return (x<10?'0':'')+x;}
+  function show(k){
+    i=Math.max(0,Math.min(n-1,k));
+    slides.forEach(function(s,j){s.classList.toggle('active',j===i);});
+    document.documentElement.style.setProperty('--prog',(i/(n-1))*100+'%');
+    counter.textContent=pad(i+1)+' / '+pad(n);
+    if(history.replaceState) history.replaceState(null,'','#'+(i+1));
+  }
+  function next(){show(i+1);} function prev(){show(i-1);}
+  function killHint(){ if(hint){hint.classList.add('gone');} }
+  document.addEventListener('keydown',function(e){
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'||e.key==='Enter'){e.preventDefault();next();killHint();}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'||e.key==='Backspace'){e.preventDefault();prev();killHint();}
+    else if(e.key==='Home'){show(0);} else if(e.key==='End'){show(n-1);}
+    else if(e.key==='f'||e.key==='F'){ if(!document.fullscreenElement){document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();} else {document.exitFullscreen&&document.exitFullscreen();} }
+  });
+  document.addEventListener('click',function(e){
+    if(e.target.closest('a')) return;
+    if(e.clientX>window.innerWidth*0.58){next();killHint();}
+    else if(e.clientX<window.innerWidth*0.42){prev();killHint();}
+  });
+  var start=(location.hash&&parseInt(location.hash.slice(1),10))||1;
+  show(start-1);
+  setTimeout(killHint,5200);
+})();
+</script>
+</body>
+</html>
