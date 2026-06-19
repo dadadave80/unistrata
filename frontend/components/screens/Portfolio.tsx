@@ -155,13 +155,13 @@ export function Portfolio() {
           <StrataCore seniorNav={live.bedrockNav} juniorNav={live.sedimentNav} scaleMax={scaleMax} height={360} sweepKey={core.sweepKey} />
           <div className="ps__navrow">
             <div className="ps__navcell"><Stat label="Total value locked" size="sm" value={<NumberTicker value={live.tvl} prefix="$" />} unit="tWETH/tUSDC" /></div>
-            <div className="ps__navcell"><Stat label="Bedrock NAV" tone="senior" size="sm" value={<NumberTicker value={live.bedrockNav} prefix="$" />} /></div>
             <div className="ps__navcell"><Stat label="Sediment NAV" tone="junior" size="sm" value={<NumberTicker value={live.sedimentNav} prefix="$" />} /></div>
+            <div className="ps__navcell"><Stat label="Bedrock NAV" tone="senior" size="sm" value={<NumberTicker value={live.bedrockNav} prefix="$" />} /></div>
           </div>
           <div className="ps__navrow" style={{ marginTop: 1 }}>
             <div className="ps__navcell"><Stat label="Epoch" size="sm" value={<NumberTicker value={live.epoch} />} unit="settled on-chain" /></div>
-            <div className="ps__navcell"><Stat label="Bedrock outstanding" size="sm" value={<NumberTicker value={beSupply} decimals={0} />} unit="BEDR" /></div>
             <div className="ps__navcell"><Stat label="Sediment outstanding" size="sm" value={<NumberTicker value={seSupply} decimals={0} />} unit="SEDI" /></div>
+            <div className="ps__navcell"><Stat label="Bedrock outstanding" size="sm" value={<NumberTicker value={beSupply} decimals={0} />} unit="BEDR" /></div>
           </div>
         </Panel>
           <div className="ps__feedwrap">
@@ -200,23 +200,12 @@ export function Portfolio() {
                   {valueLive && <Badge variant="neutral" size="sm">{shareOfPool < 0.1 ? '<0.1' : shareOfPool.toFixed(1)}% of pool</Badge>}
                 </div>
 
-                <div className="ps__bar" title={`Bedrock ${bePct.toFixed(0)}% · Sediment ${sePct.toFixed(0)}%`}>
-                  <i className="be" style={{ width: `${bePct}%` }} />
+                <div className="ps__bar" title={`Sediment ${sePct.toFixed(0)}% · Bedrock ${bePct.toFixed(0)}%`}>
                   <i className="se" style={{ width: `${sePct}%` }} />
+                  <i className="be" style={{ width: `${bePct}%` }} />
                 </div>
 
                 <div className="ps__rows">
-                  <div className="ps__row">
-                    <ShieldCheck className="be" />
-                    <div>
-                      <div className="ps__rowttl">Bedrock · BEDR</div>
-                      <div className="ps__rowsub">{beBal.toFixed(2)} shares · senior, protected</div>
-                    </div>
-                    <div>
-                      <div className="ps__rowval">{priced ? `${sign}${beR.toLocaleString()}` : '—'}</div>
-                      <div className="ps__rowpct">{priced ? `${bePct.toFixed(0)}%` : 'shares only'}</div>
-                    </div>
-                  </div>
                   <div className="ps__row">
                     <Flame className="se" />
                     <div>
@@ -226,6 +215,17 @@ export function Portfolio() {
                     <div>
                       <div className="ps__rowval">{priced ? `${sign}${seR.toLocaleString()}` : '—'}</div>
                       <div className="ps__rowpct">{priced ? `${sePct.toFixed(0)}%` : 'shares only'}</div>
+                    </div>
+                  </div>
+                  <div className="ps__row">
+                    <ShieldCheck className="be" />
+                    <div>
+                      <div className="ps__rowttl">Bedrock · BEDR</div>
+                      <div className="ps__rowsub">{beBal.toFixed(2)} shares · senior, protected</div>
+                    </div>
+                    <div>
+                      <div className="ps__rowval">{priced ? `${sign}${beR.toLocaleString()}` : '—'}</div>
+                      <div className="ps__rowpct">{priced ? `${bePct.toFixed(0)}%` : 'shares only'}</div>
                     </div>
                   </div>
                 </div>

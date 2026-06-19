@@ -216,9 +216,15 @@ export function Deposit() {
     if (!address) { open(); return; }
     setFaucetBusy(true); setErr(null); setFaucetTx(null);
     try {
-      await writeContractAsync({ address: TOKEN_USDC, abi: erc20Abi, functionName: 'mint', args: [address, parseUnits('10000', 6)], chainId: CHAIN_ID });
+      const usdcTx = await writeContractAsync({ address: TOKEN_USDC, abi: erc20Abi, functionName: 'mint', args: [address, parseUnits('10000', 6)], chainId: CHAIN_ID });
       const tx = await writeContractAsync({ address: TOKEN_WETH, abi: erc20Abi, functionName: 'mint', args: [address, parseUnits('10', 18)], chainId: CHAIN_ID });
       setFaucetTx(tx);
+      // writeContractAsync resolves on SUBMISSION, not confirmation — wait for both mints to mine before
+      // refetching, else the just-submitted WETH balance reads 0 while the older USDC tx already shows.
+      await Promise.all([
+        client?.waitForTransactionReceipt({ hash: usdcTx }),
+        client?.waitForTransactionReceipt({ hash: tx }),
+      ]);
       await refetchBals();
     } catch (e: unknown) {
       const m = e instanceof Error ? e.message : String(e);
@@ -274,6 +280,7 @@ export function Deposit() {
         args: [isSenior, amount0Max, amount1Max, minSharesOut, deadline, sig0, sig1], chainId: CHAIN_ID,
       });
       setDepTx(tx);
+      await client?.waitForTransactionReceipt({ hash: tx }); // confirm before refetch, else balances read stale
       await refetchBals();
     } catch (e: unknown) {
       const m = e instanceof Error ? e.message : String(e);
